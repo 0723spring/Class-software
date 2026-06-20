@@ -1,0 +1,22 @@
+{
+  "scenarios": [
+    {
+      "id": "S001",
+      "type": "road_collapse",
+      "roadId": "HI",
+      "severity": "high",
+      "startTime": "08:10",
+      "workload": 120,
+      "blocked": true
+    },
+    {
+      "id": "S002",
+      "type": "waterlogging",
+      "roadId": "CD",
+      "severity": "medium",
+      "startTime": "09:00",
+      "workload": 80,
+      "blocked": false
+    }
+  ]
+}

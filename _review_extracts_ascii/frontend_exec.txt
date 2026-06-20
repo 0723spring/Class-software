@@ -1,0 +1,153 @@
+前端执行版说明
+你负责前端文件：
+static/index.htmlstatic/style.cssstatic/app.js
+前端目标是实现单页多 Tab 页面，调用后端接口，展示路网、事件、资源、方案、仿真和报告。前端不负责核心业务算法。
+一、前端页面结构
+前端做一个单页多 Tab，不做复杂路由。
+Tab 包括：
+1. 态势总览2. 事件管理3. 路网管理4. 资源管理5. 方案与仿真6. 评估报告
+二、全局变量
+在 app.js 中维护：
+let currentEventId = null;let currentPlanId = null;let currentSimulationId = null;let isSubmitting = false;let state = null;
+说明：
+currentEventId：当前操作的事件currentPlanId：当前选中的方案currentSimulationId：当前仿真isSubmitting：防止重复提交state：/api/state 返回的全局数据
+三、API 调用封装
+统一使用相对路径，不写 localhost：
+async function apiGet(path) {  const res = await fetch(path);  return await res.json();}async function apiPost(path, body = {}) {  const res = await fetch(path, {    method: "POST",    headers: {"Content-Type": "application/json"},    body: JSON.stringify(body)  });  return await res.json();}async function apiPut(path, body = {}) {  const res = await fetch(path, {    method: "PUT",    headers: {"Content-Type": "application/json"},    body: JSON.stringify(body)  });  return await res.json();}async function apiDelete(path) {  const res = await fetch(path, {    method: "DELETE"  });  return await res.json();}
+所有调用后都要判断：
+if (result.code !== 200) {  alert(result.message);  return;}
+四、重复提交控制
+所有提交类操作都要加：
+if (isSubmitting) return;isSubmitting = true;try {  // 调接口} finally {  isSubmitting = false;}
+适用操作：
+创建事件编辑事件删除事件导入 JSON生成方案启动仿真推进仿真暂停仿真继续仿真重置仿真新增/编辑/删除节点新增/编辑/删除道路新增/编辑/删除队伍新增/编辑/删除仓库
+五、全局刷新函数
+前端需要写：
+async function loadState() {  const result = await apiGet("/api/state");  if (result.code !== 200) {    alert(result.message);    return;  }  state = result.data;  renderDashboard();  renderEventList();  renderNetworkManage();  renderResourceManage();  renderPlanArea();  renderReportArea();}
+以下操作成功后必须调用：
+await loadState();
+包括：
+创建事件编辑事件删除事件加载预设场景新增/编辑/删除节点新增/编辑/删除道路导入 network新增/编辑/删除队伍新增/编辑/删除仓库导入 resources生成方案启动仿真推进仿真暂停仿真继续仿真重置仿真
+六、Tab 1：态势总览
+调用接口
+GET /api/state
+页面内容
+显示：
+1. 指标卡2. SVG 路网图3. 道路状态筛选4. 事故标注5. 抢修队位置6. 道路状态图例
+指标卡字段
+从 state.metrics 获取：
+eventCountactiveTasksaverageRecoveryTimeaffectedVehiclesrecoveredRoads
+SVG 绘制规则
+state.nodes 画 circle。
+state.edges 画 line。
+根据 edge.status 设置颜色。
+state.teams 根据 locationNode 找节点位置，画队伍标记。
+state.events 中未完成事件对应的 roadId 要高亮。
+点击道路或节点可以简单显示详情。
+道路颜色建议
+normal：绿色congested：黄色damaged：红色closed：黑色或深红repairing：橙色recovered：蓝色或绿色
+状态筛选
+筛选项：
+全部normalcongesteddamagedclosedrepairingrecovered
+筛选后可以隐藏不匹配道路，或者降低透明度。
+七、Tab 2：事件管理
+调用接口
+GET    /api/eventsPOST   /api/eventsPUT    /api/events/{id}DELETE /api/events/{id}GET    /api/scenariosPOST   /api/scenarios/load
+页面内容
+1. 预设场景按钮2. 事件创建表单3. 事件编辑表单4. 事件列表5. 编辑按钮6. 删除按钮
+创建事件请求
+{  "type": "road_collapse",  "roadId": "HI",  "severity": "high",  "startTime": "08:10",  "workload": 120,  "blocked": true}
+创建成功后：
+currentEventId = result.data.id;await loadState();
+加载预设场景
+请求：
+{  "scenarioId": "S001"}
+调用：
+await apiPost("/api/scenarios/load", {scenarioId: "S001"});
+成功后：
+currentEventId = result.data.id;await loadState();
+事件删除
+调用：
+await apiDelete(`/api/events/${eventId}`);
+如果后端返回 running 事件不可删除，前端直接 alert message。
+八、Tab 3：路网管理
+调用接口
+GET    /api/nodesPOST   /api/nodesPUT    /api/nodes/{id}DELETE /api/nodes/{id}GET    /api/edgesPOST   /api/edgesPUT    /api/edges/{id}DELETE /api/edges/{id}GET    /api/network/exportPOST   /api/network/import
+页面内容
+1. 节点表格2. 节点新增/编辑表单3. 道路表格4. 道路新增/编辑表单5. network.json 导入文本框6. network.json 导出按钮
+节点表格字段
+idnamexytype操作：编辑 / 删除
+道路表格字段
+idfromNodetoNodelengthspeedflowstatus操作：编辑 / 删除
+导入 network
+前端可以用 textarea 粘贴 JSON：
+const data = JSON.parse(textarea.value);const result = await apiPost("/api/network/import", data);
+非法 JSON 要前端先 try/catch：
+try {  JSON.parse(text);} catch (e) {  alert("JSON 格式错误");}
+导出 network
+调用：
+const result = await apiGet("/api/network/export");
+然后用 result.data 生成 network.json 下载。
+九、Tab 4：资源管理
+调用接口
+GET    /api/teamsPOST   /api/teamsPUT    /api/teams/{id}DELETE /api/teams/{id}GET    /api/depotsPOST   /api/depotsPUT    /api/depots/{id}DELETE /api/depots/{id}GET    /api/resources/exportPOST   /api/resources/import
+页面内容
+1. 抢修队表格2. 抢修队新增/编辑表单3. 仓库表格4. 仓库新增/编辑表单5. resources.json 导入文本框6. resources.json 导出按钮
+队伍表格字段
+idnamelocationNodeworkersvehiclesskillefficiencystatus操作：编辑 / 删除
+仓库表格字段
+idnodeIdmaterialTypestock操作：编辑 / 删除
+注意
+如果删除 busy 队伍失败，后端会返回 409，前端直接展示 message。
+十、Tab 5：方案与仿真
+调用接口
+POST /api/plans/generateGET  /api/plans/{eventId}POST /api/simulation/startPOST /api/simulation/stepPOST /api/simulation/pausePOST /api/simulation/resumePOST /api/simulation/resetGET  /api/simulation/{simulationId}
+页面内容
+1. 事件选择框2. 生成方案按钮3. 三张方案卡片4. 推荐方案高亮5. 启动仿真按钮6. 推进一步按钮7. 暂停按钮8. 继续按钮9. 重置按钮10. 倍速选择 1x / 2x / 5x11. 进度条12. 仿真日志
+生成方案
+请求：
+{  "eventId": "E001"}
+成功后：
+const plans = result.data;const recommended = plans.find(p => p.isRecommended);currentPlanId = recommended ? recommended.id : plans[0].id;await loadState();renderPlans(plans);
+注意：
+同一事件重新生成方案时，后端会覆盖旧方案，只保留最新 3 个方案。前端不要自己合并历史方案。
+启动仿真
+请求固定为：
+{  "eventId": "E001",  "planId": "P003"}
+调用：
+const result = await apiPost("/api/simulation/start", {  eventId: currentEventId,  planId: currentPlanId});
+成功后：
+currentSimulationId = result.data.id;await loadState();renderSimulation(result.data);
+推进一步
+请求：
+{  "simulationId": "SIM001"}
+调用：
+const result = await apiPost("/api/simulation/step", {  simulationId: currentSimulationId});
+成功后：
+renderSimulation(result.data);await loadState();
+暂停
+await apiPost("/api/simulation/pause", {  simulationId: currentSimulationId});
+继续
+await apiPost("/api/simulation/resume", {  simulationId: currentSimulationId});
+重置
+await apiPost("/api/simulation/reset", {  simulationId: currentSimulationId});
+仿真查询
+页面刷新后，如果有 currentSimulationId，可以调用：
+await apiGet(`/api/simulation/${currentSimulationId}`);
+十一、Tab 6：评估报告
+调用接口
+GET /api/report/{eventId}GET /api/report/{eventId}/export
+页面内容
+1. 事件摘要2. 推荐方案3. 方案对比表4. 简单柱状图5. 仿真日志6. 导出报告按钮
+导出报告
+调用：
+const result = await apiGet(`/api/report/${eventId}/export`);
+后端返回：
+{  "code": 200,  "message": "success",  "data": {}}
+前端基于 result.data 自己生成下载文件：
+function downloadJson(filename, data) {  const blob = new Blob([JSON.stringify(data, null, 2)], {    type: "application/json"  });  const url = URL.createObjectURL(blob);  const a = document.createElement("a");  a.href = url;  a.download = filename;  a.click();  URL.revokeObjectURL(url);}
+文件名：
+report-E001.json
+十二、前端验收标准
+前端完成后必须满足：
+1. 页面能打开。2. 六个 Tab 能切换。3. 态势总览能显示 SVG 路网。4. 道路颜色能按状态变化。5. 能创建、编辑、删除事件。6. 能加载预设场景。7. 能管理节点和道路。8. 能管理队伍和仓库。9. 能导入导出 network.json。10. 能导入导出 resources.json。11. 能生成三种方案。12. 推荐方案能高亮。13. 能启动、推进、暂停、继续、重置仿真。14. 进度条和日志能更新。15. 能查看评估报告。16. 能导出 report JSON。17. 后端返回错误时必须展示 message。18. 提交按钮不能连续点击导致重复请求。

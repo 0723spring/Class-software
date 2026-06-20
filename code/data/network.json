@@ -1,0 +1,177 @@
+{
+  "nodes": [
+    {
+      "id": "A",
+      "name": "中心路口",
+      "x": 120,
+      "y": 180,
+      "type": "intersection"
+    },
+    {
+      "id": "B",
+      "name": "东一路口",
+      "x": 260,
+      "y": 180,
+      "type": "intersection"
+    },
+    {
+      "id": "C",
+      "name": "西一路口",
+      "x": 120,
+      "y": 80,
+      "type": "intersection"
+    },
+    {
+      "id": "D",
+      "name": "北环路口",
+      "x": 260,
+      "y": 80,
+      "type": "intersection"
+    },
+    {
+      "id": "E",
+      "name": "中央枢纽",
+      "x": 380,
+      "y": 180,
+      "type": "intersection"
+    },
+    {
+      "id": "F",
+      "name": "排水仓库",
+      "x": 520,
+      "y": 180,
+      "type": "depot"
+    },
+    {
+      "id": "G",
+      "name": "西南路口",
+      "x": 120,
+      "y": 320,
+      "type": "intersection"
+    },
+    {
+      "id": "H",
+      "name": "南环路口",
+      "x": 380,
+      "y": 320,
+      "type": "intersection"
+    },
+    {
+      "id": "I",
+      "name": "抢修站",
+      "x": 560,
+      "y": 320,
+      "type": "station"
+    }
+  ],
+  "edges": [
+    {
+      "id": "AB",
+      "fromNode": "A",
+      "toNode": "B",
+      "length": 1.2,
+      "speed": 40,
+      "flow": 900,
+      "status": "normal"
+    },
+    {
+      "id": "AC",
+      "fromNode": "A",
+      "toNode": "C",
+      "length": 1.0,
+      "speed": 35,
+      "flow": 500,
+      "status": "normal"
+    },
+    {
+      "id": "BD",
+      "fromNode": "B",
+      "toNode": "D",
+      "length": 1.1,
+      "speed": 35,
+      "flow": 700,
+      "status": "normal"
+    },
+    {
+      "id": "BE",
+      "fromNode": "B",
+      "toNode": "E",
+      "length": 1.3,
+      "speed": 40,
+      "flow": 1100,
+      "status": "normal"
+    },
+    {
+      "id": "CD",
+      "fromNode": "C",
+      "toNode": "D",
+      "length": 1.5,
+      "speed": 30,
+      "flow": 600,
+      "status": "congested"
+    },
+    {
+      "id": "DE",
+      "fromNode": "D",
+      "toNode": "E",
+      "length": 1.0,
+      "speed": 30,
+      "flow": 800,
+      "status": "normal"
+    },
+    {
+      "id": "EG",
+      "fromNode": "E",
+      "toNode": "G",
+      "length": 2.6,
+      "speed": 30,
+      "flow": 650,
+      "status": "normal"
+    },
+    {
+      "id": "EH",
+      "fromNode": "E",
+      "toNode": "H",
+      "length": 1.4,
+      "speed": 35,
+      "flow": 1000,
+      "status": "normal"
+    },
+    {
+      "id": "FH",
+      "fromNode": "F",
+      "toNode": "H",
+      "length": 1.7,
+      "speed": 35,
+      "flow": 750,
+      "status": "normal"
+    },
+    {
+      "id": "FI",
+      "fromNode": "F",
+      "toNode": "I",
+      "length": 1.8,
+      "speed": 35,
+      "flow": 400,
+      "status": "normal"
+    },
+    {
+      "id": "GH",
+      "fromNode": "G",
+      "toNode": "H",
+      "length": 2.0,
+      "speed": 30,
+      "flow": 550,
+      "status": "normal"
+    },
+    {
+      "id": "HI",
+      "fromNode": "H",
+      "toNode": "I",
+      "length": 1.6,
+      "speed": 30,
+      "flow": 1300,
+      "status": "repairing"
+    }
+  ]
+}

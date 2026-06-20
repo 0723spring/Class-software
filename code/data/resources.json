@@ -1,0 +1,48 @@
+{
+  "teams": [
+    {
+      "id": "T01",
+      "name": "抢修一队",
+      "locationNode": "A",
+      "workers": 8,
+      "vehicles": 2,
+      "skill": "road_repair",
+      "efficiency": 0.8,
+      "status": "busy"
+    },
+    {
+      "id": "T02",
+      "name": "排水抢险队",
+      "locationNode": "I",
+      "workers": 6,
+      "vehicles": 1,
+      "skill": "drainage",
+      "efficiency": 0.9,
+      "status": "busy"
+    },
+    {
+      "id": "T03",
+      "name": "桥梁维护队",
+      "locationNode": "F",
+      "workers": 7,
+      "vehicles": 2,
+      "skill": "bridge_repair",
+      "efficiency": 0.75,
+      "status": "idle"
+    }
+  ],
+  "depots": [
+    {
+      "id": "D01",
+      "nodeId": "F",
+      "materialType": "asphalt",
+      "stock": 300
+    },
+    {
+      "id": "D02",
+      "nodeId": "I",
+      "materialType": "drainage_pump",
+      "stock": 40
+    }
+  ]
+}

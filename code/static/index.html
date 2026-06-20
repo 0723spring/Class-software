@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>道路应急抢修系统</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">后端第一轮已就位</p>
+        <h1>城市道路突发事件应急抢修仿真与辅助决策系统</h1>
+        <p class="summary">
+          当前页面只用于确认 FastAPI 与静态资源托管正常。前端同学后续直接接管
+          `static/` 目录即可。
+        </p>
+        <div class="actions">
+          <button id="loadStateButton">加载系统状态</button>
+          <span id="statusHint">等待请求</span>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>`/api/state` 预览</h2>
+        <pre id="statePreview">点击上方按钮查看接口返回。</pre>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
