@@ -4,8 +4,10 @@ from functools import wraps
 
 import uvicorn
 from fastapi import FastAPI, Query
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from models import (
@@ -22,6 +24,7 @@ from models import (
     RoadNodeUpdate,
     ScenarioLoadRequest,
     SimulationActionRequest,
+    SimulationSpeedRequest,
     SimulationStartRequest,
 )
 from services import (
@@ -62,6 +65,7 @@ from services import (
     resume_simulation,
     start_simulation,
     step_simulation,
+    update_simulation_speed,
     update_depot,
     update_edge,
     update_event,
@@ -105,6 +109,11 @@ def handle_service(func):
 @app.on_event("startup")
 def on_startup() -> None:
     init_data_files()
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_, exc: RequestValidationError):
+    return JSONResponse(status_code=200, content={"code": 400, "message": "参数错误", "data": {"errors": exc.errors()}})
 
 
 @app.get("/")
@@ -346,6 +355,12 @@ def api_resume_simulation(payload: SimulationActionRequest):
 @handle_service
 def api_reset_simulation(payload: SimulationActionRequest):
     return reset_simulation(payload.simulationId)
+
+
+@app.post("/api/simulation/speed")
+@handle_service
+def api_update_simulation_speed(payload: SimulationSpeedRequest):
+    return update_simulation_speed(payload.simulationId, payload.speed)
 
 
 @app.get("/api/simulation/{simulation_id}")

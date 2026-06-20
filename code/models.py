@@ -217,3 +217,7 @@ class SimulationStartRequest(BaseModel):
 class SimulationActionRequest(BaseModel):
     simulationId: str
 
+
+class SimulationSpeedRequest(BaseModel):
+    simulationId: str
+    speed: float = Field(..., gt=0, le=10)

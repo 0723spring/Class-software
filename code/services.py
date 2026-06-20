@@ -204,6 +204,10 @@ def import_network(payload: dict[str, Any]) -> dict[str, Any]:
     validated = validate_network_import(payload)
     dataset = load_all()
     current_node_ids = {node["id"] for node in validated["nodes"]}
+    current_edge_ids = {edge["id"] for edge in validated["edges"]}
+    for event in dataset["events"]:
+        if event["roadId"] not in current_edge_ids:
+            raise ServiceError(409, f"导入后会导致事件 {event['id']} 丢失 roadId")
     for team in dataset["resources"]["teams"]:
         if team["locationNode"] not in current_node_ids:
             raise ServiceError(409, f"导入后会导致队伍 {team['id']} 丢失位置节点")
@@ -365,6 +369,12 @@ def import_resources(payload: dict[str, Any]) -> dict[str, Any]:
     node_ids = {node["id"] for node in load_json("network")["nodes"]}
     validated = validate_resources_import(payload, node_ids)
     dataset = load_all()
+    new_team_ids = {team["id"] for team in validated["teams"]}
+    for simulation in dataset["simulations"]:
+        if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+            missing_teams = [team_id for team_id in simulation["teamPositions"] if team_id not in new_team_ids]
+            if missing_teams:
+                raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 丢失队伍")
     dataset["resources"] = validated
     save_all(dataset)
     return validated
@@ -582,12 +592,12 @@ def step_simulation(simulation_id: str) -> dict[str, Any]:
         event["status"] = EventStatus.finished.value
         event["currentSimulationId"] = simulation["id"]
         event["updatedAt"] = now_text()
-        edge["status"] = RoadStatus.recovered.value
         for team_id in plan["teams"]:
             team = find_by_id(dataset["resources"]["teams"], team_id, "队伍")
             team["status"] = TeamStatus.idle.value
             team["locationNode"] = edge["toNode"]
-        simulation["roadStatus"] = RoadStatus.recovered.value
+        recalculate_road_status(dataset, simulation["roadId"])
+        simulation["roadStatus"] = edge["status"]
     save_all(dataset)
     return simulation
 
@@ -621,7 +631,6 @@ def reset_simulation(simulation_id: str) -> dict[str, Any]:
     event["status"] = snapshot["eventStatus"]
     event["currentSimulationId"] = simulation["id"]
     event["updatedAt"] = now_text()
-    edge["status"] = snapshot["roadStatus"]
     for team_snapshot in snapshot["teams"]:
         team = find_by_id(dataset["resources"]["teams"], team_snapshot["id"], "队伍")
         team["status"] = team_snapshot["status"]
@@ -629,9 +638,22 @@ def reset_simulation(simulation_id: str) -> dict[str, Any]:
     simulation["status"] = SimulationStatus.reset.value
     simulation["progress"] = 0
     simulation["currentTime"] = 0
-    simulation["roadStatus"] = snapshot["roadStatus"]
     simulation["teamPositions"] = {item["id"]: item["locationNode"] for item in snapshot["teams"]}
     simulation["logs"].append("仿真已重置，状态恢复到启动前")
+    edge["status"] = snapshot["roadStatus"]
+    recalculate_road_status(dataset, simulation["roadId"])
+    simulation["roadStatus"] = edge["status"]
+    save_all(dataset)
+    return simulation
+
+
+def update_simulation_speed(simulation_id: str, speed: float) -> dict[str, Any]:
+    dataset = load_all()
+    simulation = find_by_id(dataset["simulations"], simulation_id, "仿真")
+    if simulation["status"] not in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+        raise ServiceError(409, "只有 running 或 paused 仿真可以调整倍速")
+    simulation["speed"] = speed
+    simulation["logs"].append(f"仿真倍速调整为 {speed}x")
     save_all(dataset)
     return simulation
 

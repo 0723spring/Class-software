@@ -8,7 +8,7 @@
       "vehicles": 2,
       "skill": "road_repair",
       "efficiency": 0.8,
-      "status": "busy"
+      "status": "idle"
     },
     {
       "id": "T02",
@@ -18,7 +18,7 @@
       "vehicles": 1,
       "skill": "drainage",
       "efficiency": 0.9,
-      "status": "busy"
+      "status": "idle"
     },
     {
       "id": "T03",
