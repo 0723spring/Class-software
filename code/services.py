@@ -63,6 +63,19 @@ def save_all(payload: dict[str, Any]) -> None:
     save_json("simulations", {"simulations": payload["simulations"]})
 
 
+def remove_event_plans(dataset: dict[str, Any], event_id: str) -> None:
+    dataset["plans"] = [plan for plan in dataset["plans"] if plan["eventId"] != event_id]
+
+
+def planning_fields_changed(event: dict[str, Any], payload: dict[str, Any]) -> bool:
+    tracked_fields = {"type", "roadId", "severity", "workload", "blocked", "startTime"}
+    return any(field in payload and payload[field] != event.get(field) for field in tracked_fields)
+
+
+def active_event_statuses() -> set[str]:
+    return {EventStatus.created.value, EventStatus.planned.value, EventStatus.running.value}
+
+
 def find_by_id(items: list[dict[str, Any]], item_id: str, label: str) -> dict[str, Any]:
     for item in items:
         if item["id"] == item_id:
@@ -188,7 +201,7 @@ def update_edge(edge_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def delete_edge(edge_id: str) -> None:
     dataset = load_all()
-    active_events = {EventStatus.created.value, EventStatus.planned.value, EventStatus.running.value}
+    active_events = active_event_statuses()
     for event in dataset["events"]:
         if event["roadId"] == edge_id and event["status"] in active_events:
             raise ServiceError(409, "道路被未完成事件引用，无法删除")
@@ -214,6 +227,21 @@ def import_network(payload: dict[str, Any]) -> dict[str, Any]:
     for depot in dataset["resources"]["depots"]:
         if depot["nodeId"] not in current_node_ids:
             raise ServiceError(409, f"导入后会导致仓库 {depot['id']} 丢失节点")
+    active_statuses = active_event_statuses()
+    event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
+    for plan in dataset["plans"]:
+        if event_status_by_id.get(plan["eventId"]) in active_statuses:
+            if any(node_id not in current_node_ids for node_id in plan.get("route", [])):
+                raise ServiceError(409, f"导入后会导致方案 {plan['id']} 路径节点失效")
+    for simulation in dataset["simulations"]:
+        if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+            if simulation["roadId"] not in current_edge_ids:
+                raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 丢失 roadId")
+            if any(node_id not in current_node_ids for node_id in simulation.get("teamPositions", {}).values()):
+                raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 队伍位置失效")
+            snapshot_nodes = [item["locationNode"] for item in simulation.get("beforeSimulationSnapshot", {}).get("teams", [])]
+            if any(node_id not in current_node_ids for node_id in snapshot_nodes):
+                raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 快照节点失效")
     dataset["network"] = validated
     for event in dataset["events"]:
         recalculate_road_status(dataset, event["roadId"])
@@ -253,11 +281,17 @@ def update_event(event_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     event = find_by_id(dataset["events"], event_id, "事件")
     if event["status"] not in {EventStatus.created.value, EventStatus.planned.value}:
         raise ServiceError(409, "当前事件状态不允许修改核心字段")
+    should_reset_plans = planning_fields_changed(event, payload)
     old_road_id = event["roadId"]
     new_road_id = payload.get("roadId", old_road_id)
     if new_road_id != old_road_id:
         find_by_id(dataset["network"]["edges"], new_road_id, "道路")
     event.update(payload)
+    if should_reset_plans:
+        remove_event_plans(dataset, event_id)
+        event["selectedPlanId"] = None
+        event["currentSimulationId"] = None
+        event["status"] = EventStatus.created.value
     event["updatedAt"] = now_text()
     recalculate_road_status(dataset, old_road_id)
     recalculate_road_status(dataset, event["roadId"])
@@ -272,7 +306,7 @@ def delete_event(event_id: str) -> None:
         raise ServiceError(409, "running 事件不可删除")
     road_id = event["roadId"]
     dataset["events"] = [item for item in dataset["events"] if item["id"] != event_id]
-    dataset["plans"] = [plan for plan in dataset["plans"] if plan["eventId"] != event_id]
+    remove_event_plans(dataset, event_id)
     if event.get("currentSimulationId"):
         dataset["simulations"] = [simulation for simulation in dataset["simulations"] if simulation["id"] != event["currentSimulationId"]]
     recalculate_road_status(dataset, road_id)
@@ -320,6 +354,11 @@ def delete_team(team_id: str) -> None:
     team = find_by_id(dataset["resources"]["teams"], team_id, "队伍")
     if team["status"] == TeamStatus.busy.value:
         raise ServiceError(409, "busy 队伍不可删除")
+    active_statuses = active_event_statuses()
+    event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
+    for plan in dataset["plans"]:
+        if team_id in plan["teams"] and event_status_by_id.get(plan["eventId"]) in active_statuses:
+            raise ServiceError(409, "队伍被现有方案引用，无法删除")
     for simulation in dataset["simulations"]:
         if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value} and team_id in simulation["teamPositions"]:
             raise ServiceError(409, "队伍被运行中仿真引用，无法删除")
@@ -370,6 +409,13 @@ def import_resources(payload: dict[str, Any]) -> dict[str, Any]:
     validated = validate_resources_import(payload, node_ids)
     dataset = load_all()
     new_team_ids = {team["id"] for team in validated["teams"]}
+    active_statuses = active_event_statuses()
+    event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
+    for plan in dataset["plans"]:
+        if event_status_by_id.get(plan["eventId"]) in active_statuses:
+            missing_teams = [team_id for team_id in plan["teams"] if team_id not in new_team_ids]
+            if missing_teams:
+                raise ServiceError(409, f"导入后会导致方案 {plan['id']} 丢失队伍")
     for simulation in dataset["simulations"]:
         if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
             missing_teams = [team_id for team_id in simulation["teamPositions"] if team_id not in new_team_ids]
