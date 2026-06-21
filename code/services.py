@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
-from algorithms import normalize_plan_metrics, shortest_path, skill_match_score
+from algorithms import calculate_risk_penalty, normalize_plan_metrics, shortest_path, skill_match_score
 from models import EventStatus, RoadStatus, SimulationStatus, TeamStatus
 from storage import (
     load_json,

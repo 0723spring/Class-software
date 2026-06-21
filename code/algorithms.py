@@ -100,12 +100,19 @@ def skill_match_score(event_type: str, team_skill: str) -> int:
     return 0
 
 
+def calculate_risk_penalty(severity: str, strategy: str) -> float:
+    base = {"high": 0.15, "medium": 0.10, "low": 0.05}.get(severity, 0.10)
+    strategy_modifier = {"nearest": 0.0, "skill_first": -0.02, "collaboration": 0.05}.get(strategy, 0.0)
+    return round(max(0.0, min(0.3, base + strategy_modifier)), 2)
+
+
 def normalize_plan_metrics(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not plans:
         return plans
     time_values = [plan["totalTime"] for plan in plans]
     affected_values = [plan["affectedVehicles"] for plan in plans]
     cost_values = [plan["cost"] for plan in plans]
+    risk_values = [plan["riskPenalty"] for plan in plans]
 
     def normalize(value: float, series: list[float]) -> float:
         min_value = min(series)
@@ -119,7 +126,7 @@ def normalize_plan_metrics(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
             0.45 * normalize(plan["totalTime"], time_values)
             + 0.25 * normalize(plan["affectedVehicles"], affected_values)
             + 0.20 * normalize(plan["cost"], cost_values)
-            + 0.10 * plan["riskPenalty"]
+            + 0.10 * normalize(plan["riskPenalty"], risk_values)
         )
         plan["score"] = round(score, 4)
     return plans

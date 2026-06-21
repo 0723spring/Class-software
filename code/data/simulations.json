@@ -1,3 +1,56 @@
 {
-  "simulations": []
+  "simulations": [
+    {
+      "id": "SIM001",
+      "eventId": "E001",
+      "planId": "P003",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "HI",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "A",
+        "T02": "I"
+      },
+      "logs": [
+        "仿真启动，采用多队伍协同方案",
+        "抢修队 T01, T02 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：道路 HI 进入修复中",
+        "第35分钟：道路 HI 进入修复中",
+        "第40分钟：道路 HI 进入修复中",
+        "第45分钟：道路 HI 进入修复中",
+        "第50分钟：道路 HI 进入修复中",
+        "第55分钟：道路 HI 进入修复中",
+        "第60分钟：道路 HI 进入修复中",
+        "第65分钟：道路 HI 进入修复中",
+        "第70分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "A"
+          },
+          {
+            "id": "T02",
+            "status": "idle",
+            "locationNode": "I"
+          }
+        ]
+      },
+      "startedAt": "2026-06-20 21:50:36",
+      "finishedAt": "2026-06-20 22:48:48"
+    }
+  ]
 }

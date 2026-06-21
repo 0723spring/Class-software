@@ -1,30 +1,388 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>道路应急抢修系统</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">后端第一轮已就位</p>
-        <h1>城市道路突发事件应急抢修仿真与辅助决策系统</h1>
-        <p class="summary">
-          当前页面只用于确认 FastAPI 与静态资源托管正常。前端同学后续直接接管
-          `static/` 目录即可。
-        </p>
-        <div class="actions">
-          <button id="loadStateButton">加载系统状态</button>
-          <span id="statusHint">等待请求</span>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>城市道路突发事件应急抢修系统</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="header-inner">
+      <h1>城市道路突发事件应急抢修系统</h1>
+      <nav class="tab-bar" id="tabBar">
+        <button class="tab-btn active" data-tab="dashboard">仪表盘</button>
+        <button class="tab-btn" data-tab="events">事件管理</button>
+        <button class="tab-btn" data-tab="network">路网管理</button>
+        <button class="tab-btn" data-tab="resources">资源管理</button>
+        <button class="tab-btn" data-tab="simulation">方案与仿真</button>
+        <button class="tab-btn" data-tab="report">报告</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- ==================== Tab 1: 仪表盘 ==================== -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="metrics-row" id="metricsRow">
+        <div class="metric-card">
+          <span class="metric-label">事件总数</span>
+          <span class="metric-value" id="mEventCount">0</span>
         </div>
-      </section>
-      <section class="panel">
-        <h2>`/api/state` 预览</h2>
-        <pre id="statePreview">点击上方按钮查看接口返回。</pre>
-      </section>
-    </main>
-    <script src="/static/app.js"></script>
-  </body>
+        <div class="metric-card">
+          <span class="metric-label">进行中任务</span>
+          <span class="metric-value" id="mActiveTasks">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">平均恢复时间</span>
+          <span class="metric-value" id="mAvgRecovery">0</span>
+          <span class="metric-unit">min</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">影响车辆</span>
+          <span class="metric-value" id="mAffectedVehicles">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">已恢复路段</span>
+          <span class="metric-value" id="mRecoveredRoads">0</span>
+        </div>
+      </div>
+      <div class="dash-controls">
+        <div class="filter-group" id="statusFilter">
+          <label>路网筛选：</label>
+          <button class="filter-btn active" data-status="all">全部</button>
+          <button class="filter-btn" data-status="normal">normal</button>
+          <button class="filter-btn" data-status="congested">congested</button>
+          <button class="filter-btn" data-status="damaged">damaged</button>
+          <button class="filter-btn" data-status="closed">closed</button>
+          <button class="filter-btn" data-status="repairing">repairing</button>
+          <button class="filter-btn" data-status="recovered">recovered</button>
+        </div>
+      </div>
+      <div class="svg-wrapper">
+        <svg id="roadMap" viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="svg-legend"></div>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 2: 事件管理 ==================== -->
+    <section id="tab-events" class="tab-panel">
+      <div class="panel-header">
+        <h2>突发事件管理</h2>
+        <div class="panel-actions">
+          <button class="btn" id="loadScenarioBtn">加载预置场景</button>
+          <button class="btn btn-primary" id="createEventBtn">+ 新建事件</button>
+        </div>
+      </div>
+      <div id="scenarioPanel" class="scenario-panel" style="display:none">
+        <label>选择场景：</label>
+        <select id="scenarioSelect"></select>
+        <button class="btn btn-primary" id="confirmScenarioBtn">确认加载</button>
+        <button class="btn" id="cancelScenarioBtn">取消</button>
+      </div>
+      <div id="eventFormPanel" class="form-panel" style="display:none">
+        <h3 id="eventFormTitle">新建事件</h3>
+        <form id="eventForm">
+          <input type="hidden" id="efEventId" />
+          <div class="form-row">
+            <label>类型
+              <select id="efType">
+                <option value="road_collapse">road_collapse — 路面塌陷</option>
+                <option value="waterlogging">waterlogging — 积水内涝</option>
+                <option value="bridge_damage">bridge_damage — 桥梁损坏</option>
+                <option value="pipe_burst">pipe_burst — 管线爆裂</option>
+                <option value="traffic_accident">traffic_accident — 交通事故</option>
+              </select>
+            </label>
+            <label>严重程度
+              <select id="efSeverity">
+                <option value="low">low — 低</option>
+                <option value="medium">medium — 中</option>
+                <option value="high">high — 高</option>
+              </select>
+            </label>
+            <label>事发时间
+              <input type="text" id="efStartTime" placeholder="08:10" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>关联路段
+              <input type="text" id="efRoadId" placeholder="如 HI" />
+            </label>
+            <label>工作量
+              <input type="number" id="efWorkload" step="1" min="1" placeholder="120" />
+            </label>
+            <label>是否封路
+              <select id="efBlocked">
+                <option value="true">是 — 关闭道路</option>
+                <option value="false">否 — 限制通行</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="efSubmitBtn">提交</button>
+            <button type="button" class="btn" id="efCancelBtn">取消</button>
+          </div>
+        </form>
+      </div>
+      <div class="table-wrap">
+        <table id="eventTable">
+          <thead>
+            <tr><th>ID</th><th>类型</th><th>路段</th><th>严重程度</th><th>状态</th><th>阻塞</th><th>操作</th></tr>
+          </thead>
+          <tbody id="eventTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 3: 路网管理 ==================== -->
+    <section id="tab-network" class="tab-panel">
+      <div class="panel-header">
+        <h2>路网管理</h2>
+        <div class="panel-actions">
+          <button class="btn" id="exportNetworkBtn">导出 network.json</button>
+          <button class="btn" id="importNetworkBtn">导入 network.json</button>
+          <button class="btn btn-primary" id="createNodeBtn">+ 新建节点</button>
+          <button class="btn btn-primary" id="createEdgeBtn">+ 新建路段</button>
+        </div>
+      </div>
+      <div id="importNetworkPanel" class="form-panel" style="display:none">
+        <h3>导入路网数据</h3>
+        <textarea id="networkImportText" rows="8" placeholder='{"nodes":[...],"edges":[...]}'></textarea>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="confirmNetworkImport">确认导入</button>
+          <button class="btn" id="cancelNetworkImport">取消</button>
+        </div>
+      </div>
+      <div id="nodeFormPanel" class="form-panel" style="display:none">
+        <h3 id="nodeFormTitle">新建节点</h3>
+        <form id="nodeForm">
+          <input type="hidden" id="nfNodeId" />
+          <div class="form-row">
+            <label>ID <input type="text" id="nfId" placeholder="A" /></label>
+            <label>名称 <input type="text" id="nfName" placeholder="中心路口" /></label>
+            <label>X坐标 <input type="number" id="nfX" /></label>
+            <label>Y坐标 <input type="number" id="nfY" /></label>
+            <label>类型
+              <select id="nfType">
+                <option value="intersection">intersection — 路口</option>
+                <option value="station">station — 站点</option>
+                <option value="depot">depot — 仓库</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="nfSubmitBtn">提交</button>
+            <button type="button" class="btn" id="nfCancelBtn">取消</button>
+          </div>
+        </form>
+      </div>
+      <div id="edgeFormPanel" class="form-panel" style="display:none">
+        <h3 id="edgeFormTitle">新建路段</h3>
+        <form id="edgeForm">
+          <input type="hidden" id="efEdgeId" />
+          <div class="form-row">
+            <label>ID <input type="text" id="efId" placeholder="AB" /></label>
+            <label>起点 <input type="text" id="efFrom" placeholder="A" /></label>
+            <label>终点 <input type="text" id="efTo" placeholder="B" /></label>
+            <label>长度 <input type="number" id="efLength" step="0.1" placeholder="1.2" /></label>
+            <label>速度 <input type="number" id="efSpeed" step="1" placeholder="40" /></label>
+            <label>流量 <input type="number" id="efFlow" step="1" placeholder="900" /></label>
+            <label>状态
+              <select id="efStatus">
+                <option value="normal">normal</option>
+                <option value="congested">congested</option>
+                <option value="damaged">damaged</option>
+                <option value="closed">closed</option>
+                <option value="repairing">repairing</option>
+                <option value="recovered">recovered</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="efSubmitBtn">提交</button>
+            <button type="button" class="btn" id="efCancelBtn">取消</button>
+          </div>
+        </form>
+      </div>
+      <h3 class="section-title">节点列表</h3>
+      <div class="table-wrap">
+        <table id="nodeTable">
+          <thead><tr><th>ID</th><th>名称</th><th>X</th><th>Y</th><th>类型</th><th>操作</th></tr></thead>
+          <tbody id="nodeTableBody"></tbody>
+        </table>
+      </div>
+      <h3 class="section-title">路段列表</h3>
+      <div class="table-wrap">
+        <table id="edgeTable">
+          <thead><tr><th>ID</th><th>起点</th><th>终点</th><th>长度</th><th>速度</th><th>流量</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="edgeTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 4: 资源管理 ==================== -->
+    <section id="tab-resources" class="tab-panel">
+      <div class="panel-header">
+        <h2>资源管理</h2>
+        <div class="panel-actions">
+          <button class="btn" id="exportResourcesBtn">导出 resources.json</button>
+          <button class="btn" id="importResourcesBtn">导入 resources.json</button>
+          <button class="btn btn-primary" id="createTeamBtn">+ 新建队伍</button>
+          <button class="btn btn-primary" id="createDepotBtn">+ 新建仓库</button>
+        </div>
+      </div>
+      <div id="importResourcesPanel" class="form-panel" style="display:none">
+        <h3>导入资源数据</h3>
+        <textarea id="resourcesImportText" rows="8" placeholder='{"teams":[...],"depots":[...]}'></textarea>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="confirmResourcesImport">确认导入</button>
+          <button class="btn" id="cancelResourcesImport">取消</button>
+        </div>
+      </div>
+      <div id="teamFormPanel" class="form-panel" style="display:none">
+        <h3 id="teamFormTitle">新建抢修队伍</h3>
+        <form id="teamForm">
+          <input type="hidden" id="tfTeamId" />
+          <div class="form-row">
+            <label>ID <input type="text" id="tfId" placeholder="T01" /></label>
+            <label>名称 <input type="text" id="tfName" placeholder="抢修一队" /></label>
+            <label>位置节点 <input type="text" id="tfLocation" placeholder="A" /></label>
+            <label>人数 <input type="number" id="tfWorkers" min="0" placeholder="8" /></label>
+            <label>车辆 <input type="number" id="tfVehicles" min="0" placeholder="2" /></label>
+          </div>
+          <div class="form-row">
+            <label>技能
+              <select id="tfSkill">
+                <option value="road_repair">road_repair — 道路抢修</option>
+                <option value="drainage">drainage — 排水抢险</option>
+                <option value="bridge_repair">bridge_repair — 桥梁维修</option>
+                <option value="pipe_repair">pipe_repair — 管线抢修</option>
+                <option value="general">general — 通用</option>
+              </select>
+            </label>
+            <label>效率 <input type="number" id="tfEfficiency" step="0.05" min="0.01" placeholder="0.8" /></label>
+            <label>状态
+              <select id="tfStatus">
+                <option value="idle">idle — 空闲</option>
+                <option value="busy">busy — 工作中</option>
+                <option value="offline">offline — 离线</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="tfSubmitBtn">提交</button>
+            <button type="button" class="btn" id="tfCancelBtn">取消</button>
+          </div>
+        </form>
+      </div>
+      <div id="depotFormPanel" class="form-panel" style="display:none">
+        <h3 id="depotFormTitle">新建物资仓库</h3>
+        <form id="depotForm">
+          <input type="hidden" id="dfDepotId" />
+          <div class="form-row">
+            <label>ID <input type="text" id="dfId" placeholder="D01" /></label>
+            <label>所在节点 <input type="text" id="dfNodeId" placeholder="C" /></label>
+            <label>材料类型
+              <select id="dfMaterial">
+                <option value="asphalt">asphalt — 沥青</option>
+                <option value="drainage_pump">drainage_pump — 排水泵</option>
+                <option value="steel">steel — 钢材</option>
+                <option value="pipe">pipe — 管材</option>
+                <option value="general">general — 通用</option>
+              </select>
+            </label>
+            <label>库存 <input type="number" id="dfStock" min="0" placeholder="300" /></label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="dfSubmitBtn">提交</button>
+            <button type="button" class="btn" id="dfCancelBtn">取消</button>
+          </div>
+        </form>
+      </div>
+      <h3 class="section-title">抢修队伍</h3>
+      <div class="table-wrap">
+        <table id="teamTable">
+          <thead><tr><th>ID</th><th>名称</th><th>位置</th><th>人数</th><th>车辆</th><th>技能</th><th>效率</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="teamTableBody"></tbody>
+        </table>
+      </div>
+      <h3 class="section-title">物资仓库</h3>
+      <div class="table-wrap">
+        <table id="depotTable">
+          <thead><tr><th>ID</th><th>节点</th><th>材料类型</th><th>库存</th><th>操作</th></tr></thead>
+          <tbody id="depotTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 5: 方案与仿真 ==================== -->
+    <section id="tab-simulation" class="tab-panel">
+      <div class="sim-top">
+        <div class="sim-event-select" style="display:flex;align-items:center;gap:8px;flex:1">
+          <label style="font-size:13px;font-weight:500;color:var(--ink-secondary);white-space:nowrap">选择事件：</label>
+          <select id="simEventSelect"></select>
+        </div>
+        <button class="btn btn-primary" id="generatePlanBtn">生成方案</button>
+      </div>
+      <div id="planCards" class="plan-cards"></div>
+      <div id="simControlArea" class="sim-control-area" style="display:none">
+        <div class="sim-controls">
+          <button class="btn btn-primary" id="startSimBtn">开始仿真</button>
+          <button class="btn" id="stepSimBtn">推进一步</button>
+          <button class="btn" id="pauseSimBtn">暂停</button>
+          <button class="btn btn-primary" id="resumeSimBtn" style="display:none">继续仿真</button>
+          <button class="btn" id="resetSimBtn">重置</button>
+          <span class="speed-group">
+            <label>速度：</label>
+            <button class="speed-btn active" data-speed="1">1×</button>
+            <button class="speed-btn" data-speed="2">2×</button>
+            <button class="speed-btn" data-speed="5">5×</button>
+          </span>
+        </div>
+        <div class="sim-progress-area">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+          <span id="progressText">0.0%</span>
+        </div>
+        <div class="sim-logs" id="simLogs">
+          <div class="sim-log-placeholder">尚未开始仿真。</div>
+        </div>
+      </div>
+      <div id="simStatusBar" class="sim-status-bar" style="display:none">
+        <span id="simStatusText">仿真未启动</span>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 6: 报告 ==================== -->
+    <section id="tab-report" class="tab-panel">
+      <div class="panel-header">
+        <h2>报告</h2>
+        <div class="panel-actions">
+          <label>选择事件：</label>
+          <select id="reportEventSelect" style="padding:7px 10px;border:1.5px solid var(--line);border-radius:7px;font-size:13px"></select>
+          <button class="btn btn-primary" id="viewReportBtn">查看报告</button>
+          <button class="btn" id="exportReportBtn">导出 JSON</button>
+        </div>
+      </div>
+      <div id="reportContent" class="report-content">
+        <div class="report-placeholder">选择已完成的事件并点击「查看报告」。</div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
 </html>

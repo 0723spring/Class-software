@@ -1,3 +1,34 @@
 {
-  "events": []
+  "events": [
+    {
+      "id": "E001",
+      "type": "road_collapse",
+      "roadId": "HI",
+      "severity": "high",
+      "startTime": "08:10",
+      "workload": 120.0,
+      "blocked": true,
+      "status": "planned",
+      "originalRoadStatus": "normal",
+      "selectedPlanId": "P003",
+      "currentSimulationId": "SIM001",
+      "createdAt": "2026-06-20 21:50:36",
+      "updatedAt": "2026-06-20 22:49:10"
+    },
+    {
+      "id": "E002",
+      "type": "waterlogging",
+      "roadId": "CD",
+      "severity": "medium",
+      "startTime": "09:00",
+      "workload": 60.0,
+      "blocked": false,
+      "status": "created",
+      "originalRoadStatus": "congested",
+      "selectedPlanId": null,
+      "currentSimulationId": null,
+      "createdAt": "2026-06-20 22:46:20",
+      "updatedAt": "2026-06-20 22:46:20"
+    }
+  ]
 }
