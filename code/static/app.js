@@ -794,14 +794,9 @@ document.getElementById("simEventSelect").addEventListener("change", async () =>
 });
 
 function switchToEvent(eventId) {
-  document.getElementById("simEventSelect").value = eventId;
-  currentEventId = eventId;
-  document.getElementById("planCards").innerHTML = "";
-  const phaseEl = document.getElementById("simPhaseDisplay");
-  if (phaseEl) phaseEl.remove();
-  currentSimulationId = null;
-  document.getElementById("simControlArea").style.display = "none";
-  loadExistingPlans(eventId);
+  const sel = document.getElementById("simEventSelect");
+  sel.value = eventId;
+  sel.dispatchEvent(new Event("change"));
 }
 
 async function loadExistingPlans(eventId) {
@@ -945,11 +940,22 @@ function renderSelectionSummary() {
   // Check if any sims are active for the selected events
   const activeSimIds = entries.map(([eid]) => sims.filter(s => s.eventId === eid && s.status !== "reset").map(s => s.id)).flat();
   const hasActiveSims = activeSimIds.length > 0 || pendingSyncStarts.length > 0;
+  // Find entries that don't have active sims yet (can still be started)
+  const pendingEntries = entries.filter(([eid]) => {
+    const hasSim = sims.some(s => s.eventId === eid && s.status !== "reset");
+    const isPending = pendingSyncStarts.some(p => p.eventId === eid);
+    return !hasSim && !isPending;
+  });
+  const hasPendingEntries = pendingEntries.length > 0;
 
   area.innerHTML = `<div class="summary-header">
     <h3>已选方案（${entries.length} 个事件）</h3>
     <div style="display:flex;gap:8px">
-      ${hasActiveSims
+      ${hasPendingEntries
+        ? `<button class="btn btn-primary" id="startRemainingBtn">▶ 启动剩余 (${pendingEntries.length})</button>`
+        : ''
+      }
+      ${hasActiveSims || hasPendingEntries
         ? `<button class="btn" id="resetAllBtn">↻ 全部重置</button>`
         : `<button class="btn btn-primary" id="startSyncBtn">▶ 开始同步仿真</button>`
       }
@@ -967,6 +973,8 @@ function renderSelectionSummary() {
   }).join("")}</div>`;
   const startBtn = document.getElementById("startSyncBtn");
   if (startBtn) startBtn.onclick = startSyncSimulation;
+  const remainBtn = document.getElementById("startRemainingBtn");
+  if (remainBtn) remainBtn.onclick = startRemainingSims;
   const resetBtn = document.getElementById("resetAllBtn");
   if (resetBtn) resetBtn.onclick = resetAllSims;
 }
@@ -998,6 +1006,45 @@ async function resetAllSims() {
   const phaseEl = document.getElementById("simPhaseDisplay");
   if (phaseEl) phaseEl.remove();
   document.getElementById("simControlArea").style.display = "none";
+  await loadState();
+}
+
+async function startRemainingSims() {
+  const entries = Object.entries(eventPlanSelections);
+  const sims = state?.simulations || [];
+  // Only start entries without active sims (and not already pending)
+  const pending = entries.filter(([eid]) => {
+    const hasSim = sims.some(s => s.eventId === eid && s.status !== "reset");
+    const isPending = pendingSyncStarts.some(p => p.eventId === eid);
+    return !hasSim && !isPending;
+  });
+  if (pending.length === 0) { toast("没有需要启动的仿真"); return; }
+
+  // Check material feasibility (same as startSyncSimulation)
+  const plans = state?.plans || [];
+  const shortages = [];
+  for (const [, pid] of pending) {
+    const pl = plans.find(p => p.id === pid);
+    if (pl && pl.materialFeasible === false) {
+      shortages.push(`${pl.id} (${pl.strategyName}): ${(pl.materialShortage || []).map(s => `${s.materialType}缺${s.missing}`).join("、")}`);
+    }
+  }
+  if (shortages.length > 0) {
+    if (!confirm(`⚠ 以下方案库存不足：\n${shortages.join("\n")}\n\n是否仍然启动？`)) return;
+  }
+
+  let successCount = 0;
+  for (const [eid, pid] of pending) {
+    if (isSubmitting) { await new Promise(r => setTimeout(r, 100)); }
+    const r = await apiPost("/api/simulation/start", { eventId: eid, planId: pid });
+    if (r.code === 200) { successCount++; }
+    else { pendingSyncStarts.push({ eventId: eid, planId: pid, reason: r.message }); }
+  }
+  if (pendingSyncStarts.length > 0) {
+    toast(`${successCount} 个启动成功，${pendingSyncStarts.length} 个等待资源释放后自动启动`);
+  } else {
+    toast("仿真已全部启动");
+  }
   await loadState();
 }
 
@@ -1192,6 +1239,12 @@ function startSimPolling() {
       const updated = (state?.simulations || []).find(s => s.id === currentSimulationId);
       if (updated) renderSimulation(updated);
     }
+
+    // Stop polling when nothing is active
+    const hasAnyActive = (state?.simulations || []).some(s => s.status !== "reset");
+    if (!hasAnyActive && pendingSyncStarts.length === 0 && simPollTimer) {
+      stopSimPolling();
+    }
   }, 3000);
 }
 
@@ -1319,15 +1372,19 @@ async function renderReportArea() {
   const sel = document.getElementById("reportEventSelect");
   const events = (state && state.events) || [];
   const currentVal = sel.value;
-  sel.innerHTML = '<option value="">-- 选择事件 --</option>' + events.map(e =>
+  sel.innerHTML = '<option value="">-- 选择事件 --</option><option value="__overview__">📊 总览</option>' + events.map(e =>
     `<option value="${e.id}">${e.id}: ${e.type} → ${e.roadId} [${e.status}]</option>`
   ).join("");
-  if (currentVal) sel.value = currentVal;
+  if (currentVal && [...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
 }
 
 document.getElementById("viewReportBtn").addEventListener("click", async () => {
   const eventId = document.getElementById("reportEventSelect").value;
   if (!eventId) { toast("请选择事件"); return; }
+  if (eventId === "__overview__") {
+    renderReportOverview();
+    return;
+  }
   showLoading();
   const result = await apiGet(`/api/report/${eventId}`);
   hideLoading();
@@ -1344,6 +1401,128 @@ document.getElementById("exportReportBtn").addEventListener("click", async () =>
   if (!checkResult(result)) return;
   downloadJson(`report-${eventId}.json`, result.data);
 });
+
+document.getElementById("reportResetAllBtn").addEventListener("click", resetAllSims);
+
+function renderReportOverview() {
+  const events = (state?.events) || [];
+  const sims = (state?.simulations) || [];
+  const plans = (state?.plans) || [];
+  const selPlans = eventPlanSelections || {};
+
+  const finishedEvents = events.filter(e => e.status === "finished");
+  const runningEvents = events.filter(e => e.status === "running");
+  const plannedEvents = events.filter(e => e.status === "planned");
+
+  let html = `<div class="report-section">
+    <h3>📊 仿真总览</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;padding:10px 0">
+      <span style="font-size:13px;color:var(--ink-secondary)">总事件：<strong style="color:var(--ink)">${events.length}</strong></span>
+      <span style="font-size:13px;color:var(--ink-secondary)">已完成：<strong style="color:#4caf50">${finishedEvents.length}</strong></span>
+      <span style="font-size:13px;color:var(--ink-secondary)">运行中：<strong style="color:#1e88e5">${runningEvents.length}</strong></span>
+      <span style="font-size:13px;color:var(--ink-secondary)">待处理：<strong style="color:var(--ink)">${plannedEvents.length}</strong></span>
+    </div>
+  </div>`;
+
+  if (events.length === 0) {
+    html += '<div class="report-placeholder">暂无事件数据。</div>';
+    document.getElementById("reportContent").innerHTML = html;
+    return;
+  }
+
+  html += `<div class="report-section"><h3>事件列表</h3><div class="table-wrap"><table>
+    <thead><tr>
+      <th>事件</th><th>类型</th><th>路段</th><th>严重程度</th><th>状态</th>
+      <th>选中方案</th><th>仿真状态</th><th>进度</th><th>恢复时间</th><th>成本</th><th>影响车辆</th>
+    </tr></thead><tbody>`;
+
+  events.forEach(ev => {
+    const sim = sims.filter(s => s.eventId === ev.id && s.status !== "reset").pop();
+    // Find plan: try simulation planId, then backend selectedPlanId, then in-memory selection
+    let selPlan = null;
+    if (sim) selPlan = plans.find(p => p.id === sim.planId);
+    if (!selPlan && ev.selectedPlanId) selPlan = plans.find(p => p.id === ev.selectedPlanId);
+    if (!selPlan && selPlans[ev.id]) selPlan = plans.find(p => p.id === selPlans[ev.id]);
+
+    let recoveryTime = "--", cost = "--", affected = "--";
+
+    if (sim && sim.status === "finished") {
+      recoveryTime = (sim.currentTime || 0) + " min";
+      affected = sim.currentAffectedVehicles || 0;
+      if (sim.consumedMaterials) {
+        cost = sim.consumedMaterials.reduce((s, m) => s + (+m.quantity || 0), 0).toFixed(1) + " units";
+      }
+    } else if (selPlan) {
+      recoveryTime = (selPlan.totalTime || 0) + " min";
+      cost = selPlan.cost || "--";
+      affected = selPlan.affectedVehicles || 0;
+    } else if (sim) {
+      recoveryTime = (sim.currentTime || 0) + " min";
+      affected = sim.currentAffectedVehicles || 0;
+    }
+
+    const simStatus = sim
+      ? (sim.status === "running" ? `<span style="color:#1e88e5">● 运行中</span>`
+        : sim.status === "paused" ? `<span style="color:#ff8f00">⏸ 暂停</span>`
+        : sim.status === "finished" ? `<span style="color:#4caf50">✓ 已完成</span>`
+        : sim.status)
+      : (selPlan ? `<span style="color:var(--ink-secondary)">未开始</span>` : `<span style="color:var(--ink-secondary)">--</span>`);
+
+    const progress = sim ? ((sim.progress || 0).toFixed(1) + "%") : "--";
+
+    html += `<tr>
+      <td><strong>${ev.id}</strong></td>
+      <td>${ev.type}</td>
+      <td>${ev.roadId}</td>
+      <td>${ev.severity}</td>
+      <td><span class="status-pill ${ev.status}">${ev.status}</span></td>
+      <td>${selPlan ? selPlan.strategyName : '<span style="color:var(--ink-secondary)">--</span>'}</td>
+      <td>${simStatus}</td>
+      <td>${progress}</td>
+      <td>${recoveryTime}</td>
+      <td>${cost}</td>
+      <td>${affected}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+
+  // Summary section
+  const finishedSims = sims.filter(s => s.status === "finished");
+  if (finishedSims.length > 0) {
+    const totalTime = finishedSims.reduce((s, sim) => s + (sim.currentTime || 0), 0);
+    const totalAffected = finishedSims.reduce((s, sim) => s + (sim.currentAffectedVehicles || 0), 0);
+    const allConsumed = {};
+    finishedSims.forEach(s => (s.consumedMaterials || []).forEach(m => {
+      allConsumed[m.materialType] = (allConsumed[m.materialType] || 0) + (+m.quantity || 0);
+    }));
+    html += `<div class="report-section">
+      <h3>汇总统计</h3>
+      <dl class="report-dl">
+        <dt>已完成仿真</dt><dd>${finishedSims.length} 个</dd>
+        <dt>累计恢复时间</dt><dd>${totalTime} min</dd>
+        <dt>累计影响车辆</dt><dd>${totalAffected} 辆</dd>
+        ${Object.keys(allConsumed).length ? `<dt>累计消耗材料</dt><dd>${Object.entries(allConsumed).map(([t, q]) => `${t}×${q}`).join("，")}</dd>` : ""}
+      </dl>
+    </div>`;
+  }
+
+  // Logs section — show logs for all non-reset simulations
+  const simsWithLogs = sims.filter(s => s.status !== "reset" && s.logs && s.logs.length > 0);
+  if (simsWithLogs.length > 0) {
+    html += `<div class="report-section"><h3>仿真日志</h3>`;
+    simsWithLogs.forEach(s => {
+      const ev = events.find(e => e.id === s.eventId);
+      html += `<div style="margin-bottom:12px">
+        <h4 style="font-size:13px;margin:0 0 6px">${ev ? ev.id : s.eventId} — ${s.status} (${(s.progress || 0).toFixed(1)}%)</h4>
+        <div class="report-log-box">${s.logs.map(l => `<div>${l}</div>`).join("")}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  document.getElementById("reportContent").innerHTML = html;
+}
 
 function renderReport(data) {
   if (!data) {

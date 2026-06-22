@@ -1062,17 +1062,17 @@
       "id": "SIM036",
       "eventId": "E001",
       "planId": "P019",
-      "status": "finished",
-      "currentTime": 165.0,
-      "progress": 100,
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
       "speed": 5.0,
       "roadId": "HI",
       "roadStatus": "closed",
       "teamPositions": {
         "T01": "I"
       },
-      "phase": "finished",
-      "currentAffectedVehicles": 0,
+      "phase": "dispatch",
+      "currentAffectedVehicles": 24375.0,
       "consumedMaterials": [
         {
           "depotId": "D01",
@@ -1085,7 +1085,7 @@
           "quantity": 5.0
         }
       ],
-      "inventoryApplied": true,
+      "inventoryApplied": false,
       "logs": [
         "仿真启动，采用最近队伍优先方案",
         "抢修队 T01 已出发",
@@ -1098,7 +1098,8 @@
         "第90.0分钟：道路 HI 进入修复中，影响车辆降至 11781.25",
         "第115.0分钟：道路 HI 进入修复中，影响车辆降至 6363.5",
         "第140.0分钟：道路 HI 进入修复中，影响车辆降至 0.0",
-        "第165.0分钟：抢修完成，道路恢复通行"
+        "第165.0分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
       ],
       "beforeSimulationSnapshot": {
         "eventStatus": "planned",
@@ -1118,17 +1119,17 @@
       "id": "SIM037",
       "eventId": "E002",
       "planId": "P014",
-      "status": "finished",
-      "currentTime": 90.0,
-      "progress": 100,
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
       "speed": 5.0,
       "roadId": "CD",
-      "roadStatus": "recovered",
+      "roadStatus": "damaged",
       "teamPositions": {
         "T02": "D"
       },
-      "phase": "finished",
-      "currentAffectedVehicles": 0,
+      "phase": "dispatch",
+      "currentAffectedVehicles": 4254.26,
       "consumedMaterials": [
         {
           "depotId": "D02",
@@ -1141,7 +1142,7 @@
           "quantity": 2.0
         }
       ],
-      "inventoryApplied": true,
+      "inventoryApplied": false,
       "logs": [
         "仿真启动，采用专业能力优先方案",
         "抢修队 T02 已出发",
@@ -1151,7 +1152,8 @@
         "仿真倍速调整为 5.0x",
         "第40.0分钟：道路 CD 进入修复中，影响车辆降至 2515.69",
         "第65.0分钟：道路 CD 进入修复中，影响车辆降至 675.58",
-        "第90.0分钟：抢修完成，道路恢复通行"
+        "第90.0分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
       ],
       "beforeSimulationSnapshot": {
         "eventStatus": "planned",
@@ -1171,20 +1173,20 @@
       "id": "SIM038",
       "eventId": "E003",
       "planId": "P012",
-      "status": "finished",
-      "currentTime": 70,
-      "progress": 100,
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
       "speed": 1,
       "roadId": "HI",
-      "roadStatus": "recovered",
+      "roadStatus": "closed",
       "teamPositions": {
-        "T01": "H",
-        "T02": "H"
+        "T01": "I",
+        "T02": "D"
       },
-      "phase": "finished",
-      "currentAffectedVehicles": 0,
+      "phase": "dispatch",
+      "currentAffectedVehicles": 1560.0,
       "consumedMaterials": [],
-      "inventoryApplied": true,
+      "inventoryApplied": false,
       "logs": [
         "仿真启动，采用多队伍协同方案",
         "抢修队 T01, T02 已出发",
@@ -1201,7 +1203,8 @@
         "第55分钟：道路 HI 进入修复中，影响车辆降至 272.69",
         "第60分钟：道路 HI 进入修复中，影响车辆降至 0.0",
         "第65分钟：道路 HI 进入修复中，影响车辆降至 0.0",
-        "第70分钟：抢修完成，道路恢复通行"
+        "第70分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
       ],
       "beforeSimulationSnapshot": {
         "eventStatus": "planned",
@@ -1221,6 +1224,868 @@
       },
       "startedAt": "2026-06-22 16:17:39",
       "finishedAt": "2026-06-22 16:18:21"
+    },
+    {
+      "id": "SIM039",
+      "eventId": "E001",
+      "planId": "P019",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "HI",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "I"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 24375.0,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 26.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 5.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用最近队伍优先方案",
+        "抢修队 T01 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：抢修队正在赶往事故路段",
+        "第60分钟：道路 HI 进入修复中，影响车辆降至 18281.25",
+        "第65分钟：道路 HI 进入修复中，影响车辆降至 17199.0",
+        "第70分钟：道路 HI 进入修复中，影响车辆降至 16113.5",
+        "第75分钟：道路 HI 进入修复中，影响车辆降至 15031.25",
+        "第80分钟：道路 HI 进入修复中，影响车辆降至 13949.0",
+        "第85分钟：道路 HI 进入修复中，影响车辆降至 12863.5",
+        "第90分钟：道路 HI 进入修复中，影响车辆降至 11781.25",
+        "第95分钟：道路 HI 进入修复中，影响车辆降至 10699.0",
+        "第100分钟：道路 HI 进入修复中，影响车辆降至 9613.5",
+        "第105分钟：道路 HI 进入修复中，影响车辆降至 8531.25",
+        "第110分钟：道路 HI 进入修复中，影响车辆降至 7449.0",
+        "第115分钟：道路 HI 进入修复中，影响车辆降至 6363.5",
+        "第120分钟：道路 HI 进入修复中，影响车辆降至 5281.25",
+        "第125分钟：道路 HI 进入修复中，影响车辆降至 4199.0",
+        "第130分钟：道路 HI 进入修复中，影响车辆降至 2493.21",
+        "第135分钟：道路 HI 进入修复中，影响车辆降至 174.11",
+        "第140分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第145分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第150分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "I"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:31:02",
+      "finishedAt": "2026-06-22 16:32:32"
+    },
+    {
+      "id": "SIM040",
+      "eventId": "E002",
+      "planId": "P013",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "CD",
+      "roadStatus": "damaged",
+      "teamPositions": {
+        "T03": "F"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 24438.6,
+      "consumedMaterials": [
+        {
+          "depotId": "D02",
+          "materialType": "drainage_pump",
+          "quantity": 2.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 2.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用最近队伍优先方案",
+        "抢修队 T03 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：抢修队正在赶往事故路段",
+        "第60分钟：抢修队正在赶往事故路段",
+        "第65分钟：抢修队正在赶往事故路段",
+        "第70分钟：抢修队正在赶往事故路段",
+        "第75分钟：抢修队正在赶往事故路段",
+        "第80分钟：抢修队正在赶往事故路段",
+        "第85分钟：抢修队正在赶往事故路段",
+        "第90分钟：抢修队正在赶往事故路段",
+        "第95分钟：抢修队正在赶往事故路段",
+        "第100分钟：抢修队正在赶往事故路段",
+        "第105分钟：抢修队正在赶往事故路段",
+        "第110分钟：抢修队正在赶往事故路段",
+        "第115分钟：抢修队正在赶往事故路段",
+        "第120分钟：抢修队正在赶往事故路段",
+        "第125分钟：抢修队正在赶往事故路段",
+        "第130分钟：抢修队正在赶往事故路段",
+        "第135分钟：抢修队正在赶往事故路段",
+        "第140分钟：抢修队正在赶往事故路段",
+        "第145分钟：抢修队正在赶往事故路段",
+        "第150分钟：抢修队正在赶往事故路段",
+        "第155分钟：抢修队正在赶往事故路段",
+        "第160分钟：抢修队正在赶往事故路段",
+        "第165分钟：道路 CD 进入修复中，影响车辆降至 18162.77",
+        "第170分钟：道路 CD 进入修复中，影响车辆降至 17761.97",
+        "第175分钟：道路 CD 进入修复中，影响车辆降至 17364.44",
+        "第180分钟：道路 CD 进入修复中，影响车辆降至 16963.65",
+        "第185分钟：道路 CD 进入修复中，影响车辆降至 16562.85",
+        "第190分钟：道路 CD 进入修复中，影响车辆降至 16162.06",
+        "第195分钟：道路 CD 进入修复中，影响车辆降至 15761.27",
+        "第200分钟：道路 CD 进入修复中，影响车辆降至 15363.73",
+        "第205分钟：道路 CD 进入修复中，影响车辆降至 14962.94",
+        "第210分钟：道路 CD 进入修复中，影响车辆降至 14562.15",
+        "第215分钟：道路 CD 进入修复中，影响车辆降至 14161.35",
+        "第220分钟：道路 CD 进入修复中，影响车辆降至 13763.82",
+        "第225分钟：道路 CD 进入修复中，影响车辆降至 13363.03",
+        "第230分钟：道路 CD 进入修复中，影响车辆降至 12962.23",
+        "第235分钟：道路 CD 进入修复中，影响车辆降至 12561.44",
+        "第240分钟：道路 CD 进入修复中，影响车辆降至 12163.91",
+        "第245分钟：道路 CD 进入修复中，影响车辆降至 11763.11",
+        "第250分钟：道路 CD 进入修复中，影响车辆降至 11362.32",
+        "第255分钟：道路 CD 进入修复中，影响车辆降至 10961.53",
+        "第260分钟：道路 CD 进入修复中，影响车辆降至 10563.99",
+        "第265分钟：道路 CD 进入修复中，影响车辆降至 10163.2",
+        "第270分钟：道路 CD 进入修复中，影响车辆降至 9762.41",
+        "第275分钟：道路 CD 进入修复中，影响车辆降至 9361.61",
+        "第280分钟：道路 CD 进入修复中，影响车辆降至 8964.08",
+        "第285分钟：道路 CD 进入修复中，影响车辆降至 8563.29",
+        "第290分钟：道路 CD 进入修复中，影响车辆降至 8162.49",
+        "第295分钟：道路 CD 进入修复中，影响车辆降至 7761.7",
+        "第300分钟：道路 CD 进入修复中，影响车辆降至 7364.16",
+        "第305分钟：道路 CD 进入修复中，影响车辆降至 6963.37",
+        "第310分钟：道路 CD 进入修复中，影响车辆降至 6562.58",
+        "第315分钟：道路 CD 进入修复中，影响车辆降至 6161.79",
+        "第320分钟：道路 CD 进入修复中，影响车辆降至 5764.25",
+        "第325分钟：道路 CD 进入修复中，影响车辆降至 5363.46",
+        "第330分钟：道路 CD 进入修复中，影响车辆降至 4962.67",
+        "第335分钟：道路 CD 进入修复中，影响车辆降至 4561.87",
+        "第340分钟：道路 CD 进入修复中，影响车辆降至 4164.34",
+        "第345分钟：道路 CD 进入修复中，影响车辆降至 3763.54",
+        "第350分钟：道路 CD 进入修复中，影响车辆降至 3016.42",
+        "第355分钟：道路 CD 进入修复中，影响车辆降至 2157.58",
+        "第360分钟：道路 CD 进入修复中，影响车辆降至 1305.72",
+        "第365分钟：道路 CD 进入修复中，影响车辆降至 446.88",
+        "第370分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第375分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第380分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第385分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第390分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第395分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第400分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第405分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第410分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "damaged",
+        "teams": [
+          {
+            "id": "T03",
+            "status": "idle",
+            "locationNode": "F"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:31:02",
+      "finishedAt": "2026-06-22 16:35:08"
+    },
+    {
+      "id": "SIM041",
+      "eventId": "E003",
+      "planId": "P010",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "HI",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T02": "D"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 1560.0,
+      "consumedMaterials": [],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用最近队伍优先方案",
+        "抢修队 T02 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：道路 HI 进入修复中，影响车辆降至 1144.0",
+        "第60分钟：道路 HI 进入修复中，影响车辆降至 1066.0",
+        "第65分钟：道路 HI 进入修复中，影响车辆降至 988.0",
+        "第70分钟：道路 HI 进入修复中，影响车辆降至 910.0",
+        "第75分钟：道路 HI 进入修复中，影响车辆降至 832.0",
+        "第80分钟：道路 HI 进入修复中，影响车辆降至 754.0",
+        "第85分钟：道路 HI 进入修复中，影响车辆降至 676.0",
+        "第90分钟：道路 HI 进入修复中，影响车辆降至 598.0",
+        "第95分钟：道路 HI 进入修复中，影响车辆降至 520.0",
+        "第100分钟：道路 HI 进入修复中，影响车辆降至 442.0",
+        "第105分钟：道路 HI 进入修复中，影响车辆降至 364.0",
+        "第110分钟：道路 HI 进入修复中，影响车辆降至 286.0",
+        "第115分钟：道路 HI 进入修复中，影响车辆降至 178.29",
+        "第120分钟：道路 HI 进入修复中，影响车辆降至 11.14",
+        "第125分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第130分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第135分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "repairing",
+        "teams": [
+          {
+            "id": "T02",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:31:02",
+      "finishedAt": "2026-06-22 16:32:23"
+    },
+    {
+      "id": "SIM042",
+      "eventId": "E004",
+      "planId": "P018",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "AB",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "I",
+        "T03": "D"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 12389.85,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 25.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 5.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用多队伍协同方案",
+        "抢修队 T01, T03 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：道路 AB 进入修复中，影响车辆降至 8639.86",
+        "第60分钟：道路 AB 进入修复中，影响车辆降至 7980.72",
+        "第65分钟：道路 AB 进入修复中，影响车辆降至 7319.92",
+        "第70分钟：道路 AB 进入修复中，影响车辆降至 6660.78",
+        "第75分钟：道路 AB 进入修复中，影响车辆降至 5999.99",
+        "第80分钟：道路 AB 进入修复中，影响车辆降至 5340.85",
+        "第85分钟：道路 AB 进入修复中，影响车辆降至 4680.06",
+        "第90分钟：道路 AB 进入修复中，影响车辆降至 4020.92",
+        "第95分钟：道路 AB 进入修复中，影响车辆降至 3360.13",
+        "第100分钟：道路 AB 进入修复中，影响车辆降至 2700.99",
+        "第105分钟：道路 AB 进入修复中，影响车辆降至 2040.2",
+        "第110分钟：道路 AB 进入修复中，影响车辆降至 835.43",
+        "第115分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第120分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第125分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第130分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "I"
+          },
+          {
+            "id": "T03",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:35:08",
+      "finishedAt": "2026-06-22 16:36:26"
+    },
+    {
+      "id": "SIM043",
+      "eventId": "E004",
+      "planId": "P017",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "AB",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "I"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 12937.5,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 22.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 4.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T01 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：道路 AB 进入修复中，影响车辆降至 9703.12",
+        "第55分钟：道路 AB 进入修复中，影响车辆降至 9013.12",
+        "第60分钟：道路 AB 进入修复中，影响车辆降至 8323.12",
+        "第65分钟：道路 AB 进入修复中，影响车辆降至 7633.12",
+        "第70分钟：道路 AB 进入修复中，影响车辆降至 6943.12",
+        "第75分钟：道路 AB 进入修复中，影响车辆降至 6253.12",
+        "第80分钟：道路 AB 进入修复中，影响车辆降至 5563.12",
+        "第85分钟：道路 AB 进入修复中，影响车辆降至 4873.12",
+        "第90分钟：道路 AB 进入修复中，影响车辆降至 4183.12",
+        "第95分钟：道路 AB 进入修复中，影响车辆降至 3493.13",
+        "第100分钟：道路 AB 进入修复中，影响车辆降至 2803.12",
+        "第105分钟：道路 AB 进入修复中，影响车辆降至 2113.12",
+        "第110分钟：道路 AB 进入修复中，影响车辆降至 831.7",
+        "第115分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第120分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第125分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "I"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:39:46",
+      "finishedAt": "2026-06-22 16:41:02"
+    },
+    {
+      "id": "SIM044",
+      "eventId": "E002",
+      "planId": "P014",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "CD",
+      "roadStatus": "damaged",
+      "teamPositions": {
+        "T02": "D"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 4254.26,
+      "consumedMaterials": [
+        {
+          "depotId": "D02",
+          "materialType": "drainage_pump",
+          "quantity": 2.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 2.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T02 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：道路 CD 进入修复中，影响车辆降至 2883.82",
+        "第40分钟：道路 CD 进入修复中，影响车辆降至 2515.69",
+        "第45分钟：道路 CD 进入修复中，影响车辆降至 2147.55",
+        "第50分钟：道路 CD 进入修复中，影响车辆降至 1779.42",
+        "第55分钟：道路 CD 进入修复中，影响车辆降至 1411.85",
+        "第60分钟：道路 CD 进入修复中，影响车辆降至 1043.71",
+        "第65分钟：道路 CD 进入修复中，影响车辆降至 675.58",
+        "第70分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第75分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第80分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "damaged",
+        "teams": [
+          {
+            "id": "T02",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:39:47",
+      "finishedAt": "2026-06-22 16:40:35"
+    },
+    {
+      "id": "SIM046",
+      "eventId": "E001",
+      "planId": "P020",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "HI",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "B"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 22425.0,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 26.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 5.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T01 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：抢修队正在赶往事故路段",
+        "第60分钟：道路 HI 进入修复中，影响车辆降至 16818.75",
+        "第65分钟：道路 HI 进入修复中，影响车辆降至 15823.08",
+        "第70分钟：道路 HI 进入修复中，影响车辆降至 14824.42",
+        "第75分钟：道路 HI 进入修复中，影响车辆降至 13828.75",
+        "第80分钟：道路 HI 进入修复中，影响车辆降至 12833.08",
+        "第85分钟：道路 HI 进入修复中，影响车辆降至 11834.42",
+        "第90分钟：道路 HI 进入修复中，影响车辆降至 10838.75",
+        "第95分钟：道路 HI 进入修复中，影响车辆降至 9843.08",
+        "第100分钟：道路 HI 进入修复中，影响车辆降至 8844.42",
+        "第105分钟：道路 HI 进入修复中，影响车辆降至 7848.75",
+        "第110分钟：道路 HI 进入修复中，影响车辆降至 6853.08",
+        "第115分钟：道路 HI 进入修复中，影响车辆降至 5854.42",
+        "第120分钟：道路 HI 进入修复中，影响车辆降至 4858.75",
+        "第125分钟：道路 HI 进入修复中，影响车辆降至 3863.08",
+        "第130分钟：道路 HI 进入修复中，影响车辆降至 2293.76",
+        "第135分钟：道路 HI 进入修复中，影响车辆降至 160.18",
+        "第140分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第145分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第150分钟：抢修完成，道路恢复通行",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "repairing",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "B"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:41:14",
+      "finishedAt": "2026-06-22 16:42:44"
+    },
+    {
+      "id": "SIM047",
+      "eventId": "E004",
+      "planId": "P017",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "AB",
+      "roadStatus": "closed",
+      "teamPositions": {
+        "T01": "B"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 12937.5,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 22.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 4.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T01 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "B"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:45:17",
+      "finishedAt": null
+    },
+    {
+      "id": "SIM048",
+      "eventId": "E002",
+      "planId": "P014",
+      "status": "reset",
+      "currentTime": 0,
+      "progress": 0,
+      "speed": 1,
+      "roadId": "CD",
+      "roadStatus": "damaged",
+      "teamPositions": {
+        "T02": "D"
+      },
+      "phase": "dispatch",
+      "currentAffectedVehicles": 4254.26,
+      "consumedMaterials": [
+        {
+          "depotId": "D02",
+          "materialType": "drainage_pump",
+          "quantity": 2.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 2.0
+        }
+      ],
+      "inventoryApplied": false,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T02 已出发",
+        "仿真已暂停",
+        "仿真已重置，状态恢复到启动前"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "damaged",
+        "teams": [
+          {
+            "id": "T02",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:45:17",
+      "finishedAt": null
+    },
+    {
+      "id": "SIM049",
+      "eventId": "E001",
+      "planId": "P020",
+      "status": "finished",
+      "currentTime": 170.0,
+      "progress": 100,
+      "speed": 5.0,
+      "roadId": "HI",
+      "roadStatus": "recovered",
+      "teamPositions": {
+        "T01": "I"
+      },
+      "phase": "finished",
+      "currentAffectedVehicles": 0,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 26.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 5.0
+        }
+      ],
+      "inventoryApplied": true,
+      "logs": [
+        "仿真启动，采用专业能力优先方案",
+        "抢修队 T01 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "仿真倍速调整为 5.0x",
+        "第70.0分钟：道路 HI 进入修复中，影响车辆降至 14824.42",
+        "第95.0分钟：道路 HI 进入修复中，影响车辆降至 9843.08",
+        "第120.0分钟：道路 HI 进入修复中，影响车辆降至 4858.75",
+        "第145.0分钟：道路 HI 进入修复中，影响车辆降至 0.0",
+        "第170.0分钟：抢修完成，道路恢复通行"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "B"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:49:13",
+      "finishedAt": "2026-06-22 16:49:53"
+    },
+    {
+      "id": "SIM050",
+      "eventId": "E002",
+      "planId": "P015",
+      "status": "finished",
+      "currentTime": 95.0,
+      "progress": 100,
+      "speed": 5.0,
+      "roadId": "CD",
+      "roadStatus": "recovered",
+      "teamPositions": {
+        "T02": "D",
+        "T03": "D"
+      },
+      "phase": "finished",
+      "currentAffectedVehicles": 0,
+      "consumedMaterials": [
+        {
+          "depotId": "D02",
+          "materialType": "drainage_pump",
+          "quantity": 2.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 2.0
+        }
+      ],
+      "inventoryApplied": true,
+      "logs": [
+        "仿真启动，采用多队伍协同方案",
+        "抢修队 T02, T03 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：道路 CD 进入修复中，影响车辆降至 2929.48",
+        "第35分钟：道路 CD 进入修复中，影响车辆降至 2577.5",
+        "第40分钟：道路 CD 进入修复中，影响车辆降至 2225.52",
+        "第45分钟：道路 CD 进入修复中，影响车辆降至 1873.55",
+        "仿真倍速调整为 5.0x",
+        "第70.0分钟：道路 CD 进入修复中，影响车辆降至 0.0",
+        "第95.0分钟：抢修完成，道路恢复通行"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "damaged",
+        "teams": [
+          {
+            "id": "T02",
+            "status": "idle",
+            "locationNode": "D"
+          },
+          {
+            "id": "T03",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:49:13",
+      "finishedAt": "2026-06-22 16:49:44"
+    },
+    {
+      "id": "SIM051",
+      "eventId": "E004",
+      "planId": "P018",
+      "status": "finished",
+      "currentTime": 130,
+      "progress": 100,
+      "speed": 1,
+      "roadId": "AB",
+      "roadStatus": "recovered",
+      "teamPositions": {
+        "T01": "A",
+        "T03": "B"
+      },
+      "phase": "finished",
+      "currentAffectedVehicles": 0,
+      "consumedMaterials": [
+        {
+          "depotId": "D01",
+          "materialType": "asphalt",
+          "quantity": 25.0
+        },
+        {
+          "depotId": "D05",
+          "materialType": "general",
+          "quantity": 5.0
+        }
+      ],
+      "inventoryApplied": true,
+      "logs": [
+        "仿真启动，采用多队伍协同方案",
+        "抢修队 T01, T03 已出发",
+        "第5分钟：抢修队正在赶往事故路段",
+        "第10分钟：抢修队正在赶往事故路段",
+        "第15分钟：抢修队正在赶往事故路段",
+        "第20分钟：抢修队正在赶往事故路段",
+        "第25分钟：抢修队正在赶往事故路段",
+        "第30分钟：抢修队正在赶往事故路段",
+        "第35分钟：抢修队正在赶往事故路段",
+        "第40分钟：抢修队正在赶往事故路段",
+        "第45分钟：抢修队正在赶往事故路段",
+        "第50分钟：抢修队正在赶往事故路段",
+        "第55分钟：道路 AB 进入修复中，影响车辆降至 8639.86",
+        "第60分钟：道路 AB 进入修复中，影响车辆降至 7980.72",
+        "第65分钟：道路 AB 进入修复中，影响车辆降至 7319.92",
+        "第70分钟：道路 AB 进入修复中，影响车辆降至 6660.78",
+        "第75分钟：道路 AB 进入修复中，影响车辆降至 5999.99",
+        "第80分钟：道路 AB 进入修复中，影响车辆降至 5340.85",
+        "第85分钟：道路 AB 进入修复中，影响车辆降至 4680.06",
+        "第90分钟：道路 AB 进入修复中，影响车辆降至 4020.92",
+        "第95分钟：道路 AB 进入修复中，影响车辆降至 3360.13",
+        "第100分钟：道路 AB 进入修复中，影响车辆降至 2700.99",
+        "第105分钟：道路 AB 进入修复中，影响车辆降至 2040.2",
+        "第110分钟：道路 AB 进入修复中，影响车辆降至 835.43",
+        "第115分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第120分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第125分钟：道路 AB 进入修复中，影响车辆降至 0.0",
+        "第130分钟：抢修完成，道路恢复通行"
+      ],
+      "beforeSimulationSnapshot": {
+        "eventStatus": "planned",
+        "roadStatus": "closed",
+        "teams": [
+          {
+            "id": "T01",
+            "status": "idle",
+            "locationNode": "I"
+          },
+          {
+            "id": "T03",
+            "status": "idle",
+            "locationNode": "D"
+          }
+        ]
+      },
+      "startedAt": "2026-06-22 16:49:53",
+      "finishedAt": "2026-06-22 16:51:11"
     }
   ]
 }

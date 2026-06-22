@@ -10,10 +10,10 @@
       "blocked": true,
       "status": "finished",
       "originalRoadStatus": "normal",
-      "selectedPlanId": "P019",
-      "currentSimulationId": "SIM036",
+      "selectedPlanId": "P020",
+      "currentSimulationId": "SIM049",
       "createdAt": "2026-06-20 21:50:36",
-      "updatedAt": "2026-06-22 16:17:39"
+      "updatedAt": "2026-06-22 16:49:53"
     },
     {
       "id": "E002",
@@ -25,25 +25,10 @@
       "blocked": false,
       "status": "finished",
       "originalRoadStatus": "congested",
-      "selectedPlanId": "P014",
-      "currentSimulationId": "SIM037",
+      "selectedPlanId": "P015",
+      "currentSimulationId": "SIM050",
       "createdAt": "2026-06-20 22:46:20",
-      "updatedAt": "2026-06-22 16:17:30"
-    },
-    {
-      "id": "E003",
-      "type": "road_collapse",
-      "roadId": "HI",
-      "severity": "high",
-      "startTime": "08:10",
-      "workload": 120,
-      "blocked": true,
-      "status": "finished",
-      "originalRoadStatus": "closed",
-      "selectedPlanId": "P012",
-      "currentSimulationId": "SIM038",
-      "createdAt": "2026-06-22 00:30:58",
-      "updatedAt": "2026-06-22 16:18:21"
+      "updatedAt": "2026-06-22 16:49:44"
     },
     {
       "id": "E004",
@@ -53,12 +38,12 @@
       "startTime": "",
       "workload": 100.0,
       "blocked": true,
-      "status": "planned",
+      "status": "finished",
       "originalRoadStatus": "normal",
       "selectedPlanId": "P018",
-      "currentSimulationId": "SIM032",
+      "currentSimulationId": "SIM051",
       "createdAt": "2026-06-22 14:37:21",
-      "updatedAt": "2026-06-22 16:15:05"
+      "updatedAt": "2026-06-22 16:51:11"
     }
   ]
 }
