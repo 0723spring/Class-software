@@ -90,7 +90,7 @@
           <input type="hidden" id="efEventId" />
           <div class="form-row">
             <label>类型
-              <select id="efType">
+              <select id="efType" required>
                 <option value="road_collapse">road_collapse — 路面塌陷</option>
                 <option value="waterlogging">waterlogging — 积水内涝</option>
                 <option value="bridge_damage">bridge_damage — 桥梁损坏</option>
@@ -111,10 +111,10 @@
           </div>
           <div class="form-row">
             <label>关联路段
-              <input type="text" id="efRoadId" placeholder="如 HI" />
+              <input type="text" id="efRoadId" placeholder="如 HI" required />
             </label>
             <label>工作量
-              <input type="number" id="efWorkload" step="1" min="1" placeholder="120" />
+              <input type="number" id="efWorkload" step="1" min="1" placeholder="120" required />
             </label>
             <label>是否封路
               <select id="efBlocked">
@@ -163,10 +163,10 @@
         <form id="nodeForm">
           <input type="hidden" id="nfNodeId" />
           <div class="form-row">
-            <label>ID <input type="text" id="nfId" placeholder="A" /></label>
-            <label>名称 <input type="text" id="nfName" placeholder="中心路口" /></label>
-            <label>X坐标 <input type="number" id="nfX" /></label>
-            <label>Y坐标 <input type="number" id="nfY" /></label>
+            <label>ID <input type="text" id="nfId" placeholder="A" required /></label>
+            <label>名称 <input type="text" id="nfName" placeholder="中心路口" required /></label>
+            <label>X坐标 <input type="number" id="nfX" required /></label>
+            <label>Y坐标 <input type="number" id="nfY" required /></label>
             <label>类型
               <select id="nfType">
                 <option value="intersection">intersection — 路口</option>
@@ -186,12 +186,12 @@
         <form id="edgeForm">
           <input type="hidden" id="efEdgeId" />
           <div class="form-row">
-            <label>ID <input type="text" id="efId" placeholder="AB" /></label>
-            <label>起点 <input type="text" id="efFrom" placeholder="A" /></label>
-            <label>终点 <input type="text" id="efTo" placeholder="B" /></label>
-            <label>长度 <input type="number" id="efLength" step="0.1" placeholder="1.2" /></label>
-            <label>速度 <input type="number" id="efSpeed" step="1" placeholder="40" /></label>
-            <label>流量 <input type="number" id="efFlow" step="1" placeholder="900" /></label>
+            <label>ID <input type="text" id="efId" placeholder="AB" required /></label>
+            <label>起点 <input type="text" id="efFrom" placeholder="A" required /></label>
+            <label>终点 <input type="text" id="efTo" placeholder="B" required /></label>
+            <label>长度 <input type="number" id="efLength" step="0.1" placeholder="1.2" required /></label>
+            <label>速度 <input type="number" id="efSpeed" step="1" placeholder="40" required /></label>
+            <label>流量 <input type="number" id="efFlow" step="1" placeholder="900" required /></label>
             <label>状态
               <select id="efStatus">
                 <option value="normal">normal</option>
@@ -249,9 +249,9 @@
         <form id="teamForm">
           <input type="hidden" id="tfTeamId" />
           <div class="form-row">
-            <label>ID <input type="text" id="tfId" placeholder="T01" /></label>
-            <label>名称 <input type="text" id="tfName" placeholder="抢修一队" /></label>
-            <label>位置节点 <input type="text" id="tfLocation" placeholder="A" /></label>
+            <label>ID <input type="text" id="tfId" placeholder="T01" required /></label>
+            <label>名称 <input type="text" id="tfName" placeholder="抢修一队" required /></label>
+            <label>位置节点 <input type="text" id="tfLocation" placeholder="A" required /></label>
             <label>人数 <input type="number" id="tfWorkers" min="0" placeholder="8" /></label>
             <label>车辆 <input type="number" id="tfVehicles" min="0" placeholder="2" /></label>
           </div>
@@ -285,8 +285,8 @@
         <form id="depotForm">
           <input type="hidden" id="dfDepotId" />
           <div class="form-row">
-            <label>ID <input type="text" id="dfId" placeholder="D01" /></label>
-            <label>所在节点 <input type="text" id="dfNodeId" placeholder="C" /></label>
+            <label>ID <input type="text" id="dfId" placeholder="D01" required /></label>
+            <label>所在节点 <input type="text" id="dfNodeId" placeholder="C" required /></label>
             <label>材料类型
               <select id="dfMaterial">
                 <option value="asphalt">asphalt — 沥青</option>
@@ -330,26 +330,36 @@
         <button class="btn btn-primary" id="generatePlanBtn">生成方案</button>
       </div>
       <div id="planCards" class="plan-cards"></div>
-      <div id="simControlArea" class="sim-control-area" style="display:none">
-        <div class="sim-controls">
-          <button class="btn btn-primary" id="startSimBtn">开始仿真</button>
-          <button class="btn" id="stepSimBtn">推进一步</button>
-          <button class="btn" id="pauseSimBtn">暂停</button>
-          <button class="btn btn-primary" id="resumeSimBtn" style="display:none">继续仿真</button>
-          <button class="btn" id="resetSimBtn">重置</button>
-          <span class="speed-group">
-            <label>速度：</label>
-            <button class="speed-btn active" data-speed="1">1×</button>
-            <button class="speed-btn" data-speed="2">2×</button>
-            <button class="speed-btn" data-speed="5">5×</button>
-          </span>
+      <div id="selectionSummary" class="selection-summary" style="display:none"></div>
+      <div class="sim-content-row">
+        <div class="sim-visual-col">
+          <div class="svg-wrapper">
+            <svg id="simRoadMap" viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
         </div>
-        <div class="sim-progress-area">
-          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-          <span id="progressText">0.0%</span>
-        </div>
-        <div class="sim-logs" id="simLogs">
-          <div class="sim-log-placeholder">尚未开始仿真。</div>
+        <div class="sim-info-col">
+          <div id="simControlArea" class="sim-control-area" style="display:none">
+            <div class="sim-controls">
+              <button class="btn btn-primary" id="startSimBtn">开始仿真</button>
+              <button class="btn" id="stepSimBtn">推进一步</button>
+              <button class="btn" id="pauseSimBtn">暂停</button>
+              <button class="btn btn-primary" id="resumeSimBtn" style="display:none">继续仿真</button>
+              <button class="btn" id="resetSimBtn">重置</button>
+              <span class="speed-group">
+                <label>速度：</label>
+                <button class="speed-btn active" data-speed="1">1×</button>
+                <button class="speed-btn" data-speed="2">2×</button>
+                <button class="speed-btn" data-speed="5">5×</button>
+              </span>
+            </div>
+            <div class="sim-progress-area">
+              <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+              <span id="progressText">0.0%</span>
+            </div>
+            <div class="sim-logs" id="simLogs">
+              <div class="sim-log-placeholder">尚未开始仿真。</div>
+            </div>
+          </div>
         </div>
       </div>
       <div id="simStatusBar" class="sim-status-bar" style="display:none">
