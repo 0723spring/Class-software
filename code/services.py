@@ -4,7 +4,13 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
-from algorithms import calculate_risk_penalty, normalize_plan_metrics, shortest_path, skill_match_score
+from algorithms import (
+    calculate_risk_penalty,
+    estimate_required_materials,
+    normalize_plan_metrics,
+    shortest_path,
+    skill_match_score,
+)
 from models import EventStatus, RoadStatus, SimulationStatus, TeamStatus
 from storage import (
     load_json,
@@ -38,19 +44,13 @@ def next_id(prefix: str, items: list[dict[str, Any]]) -> str:
 
 
 def load_all() -> dict[str, Any]:
-    network = load_json("network")
-    events = load_json("events")["events"]
-    resources = load_json("resources")
-    scenarios = load_json("scenarios")["scenarios"]
-    plans = load_json("plans")["plans"]
-    simulations = load_json("simulations")["simulations"]
     return {
-        "network": network,
-        "events": events,
-        "resources": resources,
-        "scenarios": scenarios,
-        "plans": plans,
-        "simulations": simulations,
+        "network": load_json("network"),
+        "events": load_json("events")["events"],
+        "resources": load_json("resources"),
+        "scenarios": load_json("scenarios")["scenarios"],
+        "plans": load_json("plans")["plans"],
+        "simulations": load_json("simulations")["simulations"],
     }
 
 
@@ -76,6 +76,124 @@ def active_event_statuses() -> set[str]:
     return {EventStatus.created.value, EventStatus.planned.value, EventStatus.running.value}
 
 
+def active_simulation_statuses() -> set[str]:
+    return {SimulationStatus.running.value, SimulationStatus.paused.value}
+
+
+def current_active_simulation_count(dataset: dict[str, Any]) -> int:
+    return sum(1 for simulation in dataset["simulations"] if simulation["status"] in active_simulation_statuses())
+
+
+def severity_factor(severity: str) -> float:
+    return {"low": 0.8, "medium": 1.0, "high": 1.25}.get(severity, 1.0)
+
+
+def team_skill_factor(event_type: str, team_skill: str) -> float:
+    skill_score = skill_match_score(event_type, team_skill)
+    return {2: 1.0, 1: 0.65, 0: 0.2}.get(skill_score, 0.2)
+
+
+def calculate_affected_vehicles(edge_flow: float, total_time: float, severity: str, strategy: str) -> float:
+    strategy_factor = {"nearest": 1.0, "skill_first": 0.92, "collaboration": 0.88}.get(strategy, 1.0)
+    impact = edge_flow * severity_factor(severity) * max(total_time, 1.0) / 10 * strategy_factor
+    return round(impact, 2)
+
+
+def calculate_material_cost(required_materials: list[dict[str, Any]]) -> float:
+    unit_prices = {
+        "asphalt": 18,
+        "drainage_pump": 120,
+        "steel": 32,
+        "pipe": 24,
+        "general": 10,
+    }
+    return round(sum(item["quantity"] * unit_prices.get(item["materialType"], 12) for item in required_materials), 2)
+
+
+def allocate_materials(dataset: dict[str, Any], required_materials: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    allocations: list[dict[str, Any]] = []
+    shortages: list[dict[str, Any]] = []
+    depots = dataset["resources"]["depots"]
+    for item in required_materials:
+        material_type = item["materialType"]
+        remaining = float(item["quantity"])
+        candidate_depots = sorted(
+            [
+                depot
+                for depot in depots
+                if depot["materialType"] in {material_type, "general"} and float(depot["stock"]) > 0
+            ],
+            key=lambda depot: (depot["materialType"] != material_type, -float(depot["stock"])),
+        )
+        for depot in candidate_depots:
+            if remaining <= 0:
+                break
+            used = min(float(depot["stock"]), remaining)
+            if used <= 0:
+                continue
+            depot["stock"] = round(float(depot["stock"]) - used, 2)
+            remaining = round(remaining - used, 2)
+            allocations.append({"depotId": depot["id"], "materialType": material_type, "quantity": used})
+        if remaining > 0:
+            shortages.append({"materialType": material_type, "missing": remaining})
+    return allocations, shortages
+
+
+def restore_materials(dataset: dict[str, Any], allocations: list[dict[str, Any]]) -> None:
+    depot_by_id = {depot["id"]: depot for depot in dataset["resources"]["depots"]}
+    for item in allocations:
+        depot = depot_by_id.get(item["depotId"])
+        if depot is not None:
+            depot["stock"] = round(float(depot["stock"]) + float(item["quantity"]), 2)
+
+
+def assess_material_availability(dataset: dict[str, Any], required_materials: list[dict[str, Any]]) -> tuple[bool, list[dict[str, Any]]]:
+    dataset_copy = {"resources": {"depots": deepcopy(dataset["resources"]["depots"])}}
+    _, shortages = allocate_materials(dataset_copy, required_materials)
+    return len(shortages) == 0, shortages
+
+
+def simulation_phase(progress: float) -> str:
+    if progress < 20:
+        return "dispatch"
+    if progress < 40:
+        return "travel"
+    if progress < 85:
+        return "repairing"
+    if progress < 100:
+        return "finishing"
+    return "finished"
+
+
+def update_team_positions(simulation: dict[str, Any], plan: dict[str, Any]) -> None:
+    team_routes = plan.get("teamRoutes", {})
+    progress = simulation["progress"]
+    for team_id in list(simulation["teamPositions"].keys()):
+        route = team_routes.get(team_id) or plan.get("route", [])
+        if not route:
+            continue
+        if progress < 40:
+            travel_progress = progress / 40
+            route_index = min(len(route) - 1, int(travel_progress * max(1, len(route) - 1)))
+            current_node = route[route_index]
+        else:
+            current_node = route[-1]
+        simulation["teamPositions"][team_id] = current_node
+
+
+def current_affected_vehicle_count(plan: dict[str, Any], progress: float) -> float:
+    base = float(plan.get("affectedVehicles", 0))
+    if progress < 20:
+        factor = max(0.92, 1.0 - progress / 250)
+    elif progress < 40:
+        factor = max(0.75, 0.92 - (progress - 20) / 120)
+    elif progress < 85:
+        factor = max(0.15, 0.75 - (progress - 40) / 75)
+    else:
+        factor = max(0.0, 0.15 - (progress - 85) / 35)
+    return round(base * factor, 2)
+
+
 def find_by_id(items: list[dict[str, Any]], item_id: str, label: str) -> dict[str, Any]:
     for item in items:
         if item["id"] == item_id:
@@ -85,7 +203,6 @@ def find_by_id(items: list[dict[str, Any]], item_id: str, label: str) -> dict[st
 
 def get_state() -> dict[str, Any]:
     dataset = load_all()
-    metrics = build_metrics(dataset)
     return {
         "nodes": dataset["network"]["nodes"],
         "edges": dataset["network"]["edges"],
@@ -94,7 +211,7 @@ def get_state() -> dict[str, Any]:
         "depots": dataset["resources"]["depots"],
         "plans": dataset["plans"],
         "simulations": dataset["simulations"],
-        "metrics": metrics,
+        "metrics": build_metrics(dataset),
     }
 
 
@@ -108,17 +225,28 @@ def build_metrics(dataset: dict[str, Any]) -> dict[str, Any]:
         related_plans = {plan["id"]: plan for plan in plans}
         total = sum(related_plans.get(simulation["planId"], {}).get("totalTime", 0) for simulation in finished_simulations)
         average_recovery_time = round(total / len(finished_simulations), 2)
-    active_events = [event for event in events if event["status"] in {EventStatus.created.value, EventStatus.planned.value, EventStatus.running.value}]
+    active_events = [event for event in events if event["status"] in active_event_statuses()]
     affected_vehicles = 0
     for event in active_events:
-        edge = next((edge for edge in dataset["network"]["edges"] if edge["id"] == event["roadId"]), None)
-        affected_vehicles += 0 if edge is None else edge["flow"]
+        running_simulation = next(
+            (
+                simulation
+                for simulation in dataset["simulations"]
+                if simulation["eventId"] == event["id"] and simulation["status"] in active_simulation_statuses()
+            ),
+            None,
+        )
+        if running_simulation is not None:
+            affected_vehicles += running_simulation.get("currentAffectedVehicles", 0)
+        else:
+            edge = next((edge for edge in dataset["network"]["edges"] if edge["id"] == event["roadId"]), None)
+            affected_vehicles += 0 if edge is None else edge["flow"]
     recovered_roads = sum(1 for edge in dataset["network"]["edges"] if edge["status"] == RoadStatus.recovered.value)
     return {
         "eventCount": len(events),
         "activeTasks": len(active_events),
         "averageRecoveryTime": average_recovery_time,
-        "affectedVehicles": affected_vehicles,
+        "affectedVehicles": round(affected_vehicles, 2),
         "recoveredRoads": recovered_roads,
     }
 
@@ -129,8 +257,7 @@ def reset_data() -> dict[str, Any]:
 
 
 def list_network() -> dict[str, Any]:
-    network = load_json("network")
-    return network
+    return load_json("network")
 
 
 def list_nodes() -> list[dict[str, Any]]:
@@ -143,10 +270,9 @@ def list_edges() -> list[dict[str, Any]]:
 
 def create_node(payload: dict[str, Any]) -> dict[str, Any]:
     dataset = load_all()
-    nodes = dataset["network"]["nodes"]
-    if any(node["id"] == payload["id"] for node in nodes):
+    if any(node["id"] == payload["id"] for node in dataset["network"]["nodes"]):
         raise ServiceError(409, "节点 id 已存在")
-    nodes.append(payload)
+    dataset["network"]["nodes"].append(payload)
     save_all(dataset)
     return payload
 
@@ -176,13 +302,12 @@ def delete_node(node_id: str) -> None:
 
 def create_edge(payload: dict[str, Any]) -> dict[str, Any]:
     dataset = load_all()
-    edges = dataset["network"]["edges"]
     node_ids = {node["id"] for node in dataset["network"]["nodes"]}
-    if payload["id"] in {edge["id"] for edge in edges}:
+    if payload["id"] in {edge["id"] for edge in dataset["network"]["edges"]}:
         raise ServiceError(409, "道路 id 已存在")
     if payload["fromNode"] not in node_ids or payload["toNode"] not in node_ids:
         raise ServiceError(400, "道路引用的节点不存在")
-    edges.append(payload)
+    dataset["network"]["edges"].append(payload)
     save_all(dataset)
     return payload
 
@@ -201,9 +326,8 @@ def update_edge(edge_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def delete_edge(edge_id: str) -> None:
     dataset = load_all()
-    active_events = active_event_statuses()
     for event in dataset["events"]:
-        if event["roadId"] == edge_id and event["status"] in active_events:
+        if event["roadId"] == edge_id and event["status"] in active_event_statuses():
             raise ServiceError(409, "道路被未完成事件引用，无法删除")
     dataset["network"]["edges"] = [edge for edge in dataset["network"]["edges"] if edge["id"] != edge_id]
     save_all(dataset)
@@ -227,14 +351,16 @@ def import_network(payload: dict[str, Any]) -> dict[str, Any]:
     for depot in dataset["resources"]["depots"]:
         if depot["nodeId"] not in current_node_ids:
             raise ServiceError(409, f"导入后会导致仓库 {depot['id']} 丢失节点")
-    active_statuses = active_event_statuses()
     event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
     for plan in dataset["plans"]:
-        if event_status_by_id.get(plan["eventId"]) in active_statuses:
+        if event_status_by_id.get(plan["eventId"]) in active_event_statuses():
             if any(node_id not in current_node_ids for node_id in plan.get("route", [])):
                 raise ServiceError(409, f"导入后会导致方案 {plan['id']} 路径节点失效")
+            for route in plan.get("teamRoutes", {}).values():
+                if any(node_id not in current_node_ids for node_id in route):
+                    raise ServiceError(409, f"导入后会导致方案 {plan['id']} 队伍路线失效")
     for simulation in dataset["simulations"]:
-        if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+        if simulation["status"] in active_simulation_statuses():
             if simulation["roadId"] not in current_edge_ids:
                 raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 丢失 roadId")
             if any(node_id not in current_node_ids for node_id in simulation.get("teamPositions", {}).values()):
@@ -354,13 +480,12 @@ def delete_team(team_id: str) -> None:
     team = find_by_id(dataset["resources"]["teams"], team_id, "队伍")
     if team["status"] == TeamStatus.busy.value:
         raise ServiceError(409, "busy 队伍不可删除")
-    active_statuses = active_event_statuses()
     event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
     for plan in dataset["plans"]:
-        if team_id in plan["teams"] and event_status_by_id.get(plan["eventId"]) in active_statuses:
+        if team_id in plan["teams"] and event_status_by_id.get(plan["eventId"]) in active_event_statuses():
             raise ServiceError(409, "队伍被现有方案引用，无法删除")
     for simulation in dataset["simulations"]:
-        if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value} and team_id in simulation["teamPositions"]:
+        if simulation["status"] in active_simulation_statuses() and team_id in simulation["teamPositions"]:
             raise ServiceError(409, "队伍被运行中仿真引用，无法删除")
     dataset["resources"]["teams"] = [item for item in dataset["resources"]["teams"] if item["id"] != team_id]
     save_all(dataset)
@@ -395,7 +520,13 @@ def update_depot(depot_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def delete_depot(depot_id: str) -> None:
     dataset = load_all()
-    find_by_id(dataset["resources"]["depots"], depot_id, "仓库")
+    depot = find_by_id(dataset["resources"]["depots"], depot_id, "仓库")
+    event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
+    for plan in dataset["plans"]:
+        if event_status_by_id.get(plan["eventId"]) in active_event_statuses():
+            for material in plan.get("requiredMaterials", []):
+                if depot["materialType"] in {material["materialType"], "general"}:
+                    raise ServiceError(409, "仓库可能被现有方案依赖，无法删除")
     dataset["resources"]["depots"] = [item for item in dataset["resources"]["depots"] if item["id"] != depot_id]
     save_all(dataset)
 
@@ -409,15 +540,14 @@ def import_resources(payload: dict[str, Any]) -> dict[str, Any]:
     validated = validate_resources_import(payload, node_ids)
     dataset = load_all()
     new_team_ids = {team["id"] for team in validated["teams"]}
-    active_statuses = active_event_statuses()
     event_status_by_id = {event["id"]: event["status"] for event in dataset["events"]}
     for plan in dataset["plans"]:
-        if event_status_by_id.get(plan["eventId"]) in active_statuses:
+        if event_status_by_id.get(plan["eventId"]) in active_event_statuses():
             missing_teams = [team_id for team_id in plan["teams"] if team_id not in new_team_ids]
             if missing_teams:
                 raise ServiceError(409, f"导入后会导致方案 {plan['id']} 丢失队伍")
     for simulation in dataset["simulations"]:
-        if simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+        if simulation["status"] in active_simulation_statuses():
             missing_teams = [team_id for team_id in simulation["teamPositions"] if team_id not in new_team_ids]
             if missing_teams:
                 raise ServiceError(409, f"导入后会导致仿真 {simulation['id']} 丢失队伍")
@@ -488,9 +618,10 @@ def generate_plans(event_id: str) -> list[dict[str, Any]]:
                 existing_ids.add(candidate)
                 return candidate
 
-    plans: list[dict[str, Any]] = []
-    plans.append(build_plan(dataset, event, allocate_plan_id(), "nearest", "最近队伍优先", [candidates_by_arrival[0]]))
-    plans.append(build_plan(dataset, event, allocate_plan_id(), "skill_first", "专业能力优先", [candidates_by_skill[0]]))
+    plans = [
+        build_plan(dataset, event, allocate_plan_id(), "nearest", "最近队伍优先", [candidates_by_arrival[0]]),
+        build_plan(dataset, event, allocate_plan_id(), "skill_first", "专业能力优先", [candidates_by_skill[0]]),
+    ]
 
     collaboration_members = candidates_by_skill[:2] if len(candidates_by_skill) >= 2 else [candidates_by_skill[0]]
     collaboration_plan = build_plan(dataset, event, allocate_plan_id(), "collaboration", "多队伍协同", collaboration_members)
@@ -498,8 +629,17 @@ def generate_plans(event_id: str) -> list[dict[str, Any]]:
         collaboration_plan["reason"] += "；当前空闲队伍不足两支，已降级为单队伍协同方案"
     plans.append(collaboration_plan)
 
+    for plan in plans:
+        material_feasible, shortages = assess_material_availability(dataset, plan.get("requiredMaterials", []))
+        plan["materialFeasible"] = material_feasible
+        plan["materialShortage"] = shortages
+        if shortages:
+            shortage_text = ", ".join(f"{item['materialType']} 缺少 {item['missing']}" for item in shortages)
+            plan["reason"] += f"；库存约束：{shortage_text}"
+
     plans = normalize_plan_metrics(plans)
-    best_plan = min(plans, key=lambda item: item["score"])
+    feasible_plans = [plan for plan in plans if plan.get("materialFeasible")]
+    best_plan = min(feasible_plans or plans, key=lambda item: item["score"])
     for plan in plans:
         plan["isRecommended"] = plan["id"] == best_plan["id"]
 
@@ -521,18 +661,24 @@ def build_plan(
 ) -> dict[str, Any]:
     related_edge = find_by_id(dataset["network"]["edges"], event["roadId"], "道路")
     teams = [member["team"]["id"] for member in members]
+    team_routes = {member["team"]["id"]: member["route"]["path"] for member in members}
     arrival_time = max(member["arrivalTime"] for member in members)
-    route = members[0]["route"]["path"]
-    total_efficiency = sum(member["team"]["efficiency"] for member in members)
+    route = max((member["route"]["path"] for member in members), key=len)
+    weighted_efficiencies = [
+        member["team"]["efficiency"] * team_skill_factor(event["type"], member["team"]["skill"]) for member in members
+    ]
+    total_efficiency = max(0.1, sum(weighted_efficiencies))
     if len(members) == 1:
         repair_time = event["workload"] / total_efficiency
     else:
-        repair_time = event["workload"] / total_efficiency * 0.85
-    affected_vehicles = related_edge["flow"] * max(1, event["workload"] / 100)
-    cost = 2500 + 700 * len(members) + repair_time * 12
-    risk_penalty = 0.05
-    if event["severity"] == "high":
-        risk_penalty += 0.05
+        repair_time = event["workload"] / total_efficiency * 1.12
+    required_materials = estimate_required_materials(event, len(members))
+    material_cost = calculate_material_cost(required_materials)
+    total_time = round(arrival_time + repair_time, 2)
+    affected_vehicles = calculate_affected_vehicles(related_edge["flow"], total_time, event["severity"], strategy)
+    coordination_cost = 450 * max(0, len(members) - 1)
+    cost = 2500 + 900 * len(members) + repair_time * 15 + arrival_time * 20 + coordination_cost + material_cost
+    risk_penalty = calculate_risk_penalty(event["severity"], strategy)
     if strategy == "nearest":
         reason = "到达速度快，但综合修复效率一般"
     elif strategy == "skill_first":
@@ -546,15 +692,17 @@ def build_plan(
         "strategyName": strategy_name,
         "teams": teams,
         "route": route,
+        "teamRoutes": team_routes,
         "arrivalTime": round(arrival_time, 2),
         "repairTime": round(repair_time, 2),
-        "totalTime": round(arrival_time + repair_time, 2),
+        "totalTime": total_time,
         "cost": round(cost, 2),
         "affectedVehicles": round(affected_vehicles, 2),
         "riskPenalty": round(risk_penalty, 2),
         "score": 0.0,
         "isRecommended": False,
         "reason": reason,
+        "requiredMaterials": required_materials,
         "createdAt": now_text(),
     }
 
@@ -563,18 +711,26 @@ def start_simulation(event_id: str, plan_id: str) -> dict[str, Any]:
     dataset = load_all()
     event = find_by_id(dataset["events"], event_id, "事件")
     plan = find_by_id(dataset["plans"], plan_id, "方案")
+    if current_active_simulation_count(dataset) >= 10:
+        raise ServiceError(409, "最多只允许 10 个运行中或暂停中的仿真")
     if plan["eventId"] != event_id:
         raise ServiceError(409, "planId 不属于当前 eventId")
     if event["status"] != EventStatus.planned.value:
         raise ServiceError(409, "只有 planned 事件可以启动仿真")
     for simulation in dataset["simulations"]:
-        if simulation["eventId"] == event_id and simulation["status"] in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+        if simulation["eventId"] == event_id and simulation["status"] in active_simulation_statuses():
             raise ServiceError(409, "同一事件不能存在 running 或 paused 仿真")
     teams = [find_by_id(dataset["resources"]["teams"], team_id, "队伍") for team_id in plan["teams"]]
     for team in teams:
         if team["status"] != TeamStatus.idle.value:
             raise ServiceError(409, "方案中的队伍必须处于 idle 状态")
     edge = find_by_id(dataset["network"]["edges"], event["roadId"], "道路")
+
+    material_allocations, shortages = allocate_materials(dataset, plan.get("requiredMaterials", []))
+    if shortages:
+        restore_materials(dataset, material_allocations)
+        shortage_text = ", ".join(f"{item['materialType']} 缺少 {item['missing']}" for item in shortages)
+        raise ServiceError(409, f"库存不足，无法启动仿真：{shortage_text}")
 
     simulation = {
         "id": next_id("SIM", dataset["simulations"]),
@@ -585,8 +741,12 @@ def start_simulation(event_id: str, plan_id: str) -> dict[str, Any]:
         "progress": 0,
         "speed": 1,
         "roadId": event["roadId"],
-        "roadStatus": RoadStatus.repairing.value,
+        "roadStatus": edge["status"],
         "teamPositions": {team["id"]: team["locationNode"] for team in teams},
+        "phase": "dispatch",
+        "currentAffectedVehicles": plan.get("affectedVehicles", 0),
+        "consumedMaterials": material_allocations,
+        "inventoryApplied": True,
         "logs": [
             f"仿真启动，采用{plan['strategyName']}方案",
             f"抢修队 {', '.join(plan['teams'])} 已出发",
@@ -600,9 +760,11 @@ def start_simulation(event_id: str, plan_id: str) -> dict[str, Any]:
         "finishedAt": None,
     }
     event["status"] = EventStatus.running.value
+    event["selectedPlanId"] = plan_id
     event["currentSimulationId"] = simulation["id"]
     event["updatedAt"] = now_text()
     edge["status"] = RoadStatus.repairing.value
+    simulation["roadStatus"] = edge["status"]
     for team in teams:
         team["status"] = TeamStatus.busy.value
     dataset["simulations"].append(simulation)
@@ -625,13 +787,22 @@ def step_simulation(simulation_id: str) -> dict[str, Any]:
     increment = 5 * simulation["speed"]
     simulation["currentTime"] += increment
     simulation["progress"] = min(100, round(simulation["currentTime"] / max(plan["totalTime"], 1) * 100, 2))
-    if simulation["progress"] < 40:
+    simulation["phase"] = simulation_phase(simulation["progress"])
+    update_team_positions(simulation, plan)
+    simulation["currentAffectedVehicles"] = current_affected_vehicle_count(plan, simulation["progress"])
+
+    if simulation["phase"] in {"dispatch", "travel"}:
+        edge["status"] = RoadStatus.repairing.value
+        simulation["roadStatus"] = edge["status"]
         stage_text = f"第{simulation['currentTime']}分钟：抢修队正在赶往事故路段"
-    elif simulation["progress"] < 100:
-        stage_text = f"第{simulation['currentTime']}分钟：道路 {simulation['roadId']} 进入修复中"
+    elif simulation["phase"] in {"repairing", "finishing"}:
+        edge["status"] = RoadStatus.repairing.value
+        simulation["roadStatus"] = edge["status"]
+        stage_text = f"第{simulation['currentTime']}分钟：道路 {simulation['roadId']} 进入修复中，影响车辆降至 {simulation['currentAffectedVehicles']}"
     else:
         stage_text = f"第{simulation['currentTime']}分钟：抢修完成，道路恢复通行"
     simulation["logs"].append(stage_text)
+
     if simulation["progress"] >= 100:
         simulation["status"] = SimulationStatus.finished.value
         simulation["finishedAt"] = now_text()
@@ -644,6 +815,7 @@ def step_simulation(simulation_id: str) -> dict[str, Any]:
             team["locationNode"] = edge["toNode"]
         recalculate_road_status(dataset, simulation["roadId"])
         simulation["roadStatus"] = edge["status"]
+        simulation["currentAffectedVehicles"] = 0
     save_all(dataset)
     return simulation
 
@@ -654,6 +826,7 @@ def pause_simulation(simulation_id: str) -> dict[str, Any]:
     if simulation["status"] != SimulationStatus.running.value:
         raise ServiceError(409, "只有 running 仿真可以暂停")
     simulation["status"] = SimulationStatus.paused.value
+    simulation["logs"].append("仿真已暂停")
     save_all(dataset)
     return simulation
 
@@ -664,6 +837,7 @@ def resume_simulation(simulation_id: str) -> dict[str, Any]:
     if simulation["status"] != SimulationStatus.paused.value:
         raise ServiceError(409, "只有 paused 仿真可以继续")
     simulation["status"] = SimulationStatus.running.value
+    simulation["logs"].append("仿真已继续")
     save_all(dataset)
     return simulation
 
@@ -684,11 +858,17 @@ def reset_simulation(simulation_id: str) -> dict[str, Any]:
     simulation["status"] = SimulationStatus.reset.value
     simulation["progress"] = 0
     simulation["currentTime"] = 0
+    simulation["phase"] = "dispatch"
     simulation["teamPositions"] = {item["id"]: item["locationNode"] for item in snapshot["teams"]}
     simulation["logs"].append("仿真已重置，状态恢复到启动前")
+    if simulation.get("inventoryApplied"):
+        restore_materials(dataset, simulation.get("consumedMaterials", []))
+        simulation["inventoryApplied"] = False
     edge["status"] = snapshot["roadStatus"]
     recalculate_road_status(dataset, simulation["roadId"])
     simulation["roadStatus"] = edge["status"]
+    plan = find_by_id(dataset["plans"], simulation["planId"], "方案")
+    simulation["currentAffectedVehicles"] = plan.get("affectedVehicles", 0)
     save_all(dataset)
     return simulation
 
@@ -696,7 +876,7 @@ def reset_simulation(simulation_id: str) -> dict[str, Any]:
 def update_simulation_speed(simulation_id: str, speed: float) -> dict[str, Any]:
     dataset = load_all()
     simulation = find_by_id(dataset["simulations"], simulation_id, "仿真")
-    if simulation["status"] not in {SimulationStatus.running.value, SimulationStatus.paused.value}:
+    if simulation["status"] not in active_simulation_statuses():
         raise ServiceError(409, "只有 running 或 paused 仿真可以调整倍速")
     simulation["speed"] = speed
     simulation["logs"].append(f"仿真倍速调整为 {speed}x")
@@ -720,6 +900,8 @@ def build_report(event_id: str) -> dict[str, Any]:
         "recommendedStrategy": None if recommended_plan is None else recommended_plan["strategyName"],
         "simulationStatus": None if simulation is None else simulation["status"],
         "logCount": 0 if simulation is None else len(simulation["logs"]),
+        "currentAffectedVehicles": 0 if simulation is None else simulation.get("currentAffectedVehicles", 0),
+        "consumedMaterials": [] if simulation is None else simulation.get("consumedMaterials", []),
     }
     return {
         "event": event,

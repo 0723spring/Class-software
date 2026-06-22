@@ -14,7 +14,7 @@
 
 ## 2. 当前后端状态
 
-后端第一轮已完成以下内容：
+后端当前已完成以下内容：
 
 - `python main.py` 可启动
 - 所有接口路径已存在
@@ -22,6 +22,9 @@
 - 所有接口统一返回 `{code, message, data}`
 - 路网、事件、资源 CRUD 可真实写入 JSON
 - 方案生成、仿真启动、仿真推进、报告聚合均可调用
+- 方案会返回 `requiredMaterials`、`materialFeasible`、`materialShortage`
+- 仿真会返回 `phase`、`teamPositions`、`currentAffectedVehicles`、`consumedMaterials`
+- 支持同时管理多个事件，且允许最多 10 个处于 `running/paused` 的仿真
 
 可以直接开始做前端，不需要等待算法再精修。
 
@@ -50,6 +53,7 @@
 - 方案评分
 - 推荐方案判断
 - 仿真进度计算
+- 物资是否足够、启动时库存是否扣减
 - 道路状态恢复
 - 队伍 `busy/idle` 切换
 
@@ -73,6 +77,7 @@
 - `POST /api/simulation/pause`
 - `POST /api/simulation/resume`
 - `POST /api/simulation/reset`
+- `POST /api/simulation/speed`
 - `GET /api/simulation/{simulationId}`
 - `GET /api/report/{eventId}`
 - `GET /api/report/{eventId}/export`
@@ -83,6 +88,12 @@
 - 每次请求后判断 `result.code`
 - `result.code !== 200` 时直接展示 `result.message`
 - 所有提交类操作都加 `isSubmitting`
+- 方案卡片必须标注“分数越低越优”，不要按“越高越优”理解
+- 仿真运行时前端需要自行用定时器轮询调用 `POST /api/simulation/step`
+- `simulation.phase` 可用于做图形化动画：`dispatch` / `travel` / `repairing` / `finishing` / `finished`
+- `simulation.teamPositions` 可直接驱动 SVG 上队伍位置更新
+- `simulation.currentAffectedVehicles` 可直接驱动“影响车辆”数字动态下降
+- `plan.materialFeasible=false` 时，前端应禁止或二次确认启动该方案
 - 以下操作成功后统一重新调用 `GET /api/state`
 
 需要刷新 `state` 的操作：
@@ -101,6 +112,7 @@
 - 暂停仿真
 - 继续仿真
 - 重置仿真
+- 调整仿真倍速
 
 ## 7. 运行方式
 
@@ -119,7 +131,7 @@ http://127.0.0.1:8000
 
 ## 8. 当前结论
 
-前端现在可以正式开工。
+前端现在可以正式联调。
 
 建议前端同学先把：
 
@@ -128,5 +140,6 @@ http://127.0.0.1:8000
 - `loadState()`
 - SVG 路网
 - 方案与仿真区
+- 仿真自动推进计时器
 
 这几块先搭起来，后面再慢慢补样式和细节。

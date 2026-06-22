@@ -51,6 +51,9 @@ DEFAULT_DATA: dict[str, Any] = {
         "depots": [
             {"id": "D01", "nodeId": "F", "materialType": "asphalt", "stock": 300},
             {"id": "D02", "nodeId": "I", "materialType": "drainage_pump", "stock": 40},
+            {"id": "D03", "nodeId": "F", "materialType": "steel", "stock": 180},
+            {"id": "D04", "nodeId": "I", "materialType": "pipe", "stock": 150},
+            {"id": "D05", "nodeId": "F", "materialType": "general", "stock": 200},
         ],
     },
     "scenarios": {

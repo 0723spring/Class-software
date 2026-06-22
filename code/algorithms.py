@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import heapq
+from math import ceil
 from math import inf
 from typing import Any
 
@@ -11,6 +12,20 @@ SKILL_MAP = {
     "bridge_damage": {"bridge_repair"},
     "pipe_burst": {"pipe_repair"},
     "traffic_accident": {"general", "road_repair"},
+}
+
+MATERIAL_RULES = {
+    "road_collapse": {"asphalt": 0.18, "general": 0.03},
+    "waterlogging": {"drainage_pump": 0.025, "general": 0.02},
+    "bridge_damage": {"steel": 0.14, "general": 0.04},
+    "pipe_burst": {"pipe": 0.10, "general": 0.03},
+    "traffic_accident": {"general": 0.08},
+}
+
+SEVERITY_FACTOR = {
+    "low": 0.85,
+    "medium": 1.0,
+    "high": 1.2,
 }
 
 
@@ -101,9 +116,21 @@ def skill_match_score(event_type: str, team_skill: str) -> int:
 
 
 def calculate_risk_penalty(severity: str, strategy: str) -> float:
-    base = {"high": 0.15, "medium": 0.10, "low": 0.05}.get(severity, 0.10)
-    strategy_modifier = {"nearest": 0.0, "skill_first": -0.02, "collaboration": 0.05}.get(strategy, 0.0)
+    base = {"high": 0.18, "medium": 0.10, "low": 0.05}.get(severity, 0.10)
+    strategy_modifier = {"nearest": 0.01, "skill_first": -0.03, "collaboration": 0.09}.get(strategy, 0.0)
     return round(max(0.0, min(0.3, base + strategy_modifier)), 2)
+
+
+def estimate_required_materials(event: dict[str, Any], team_count: int) -> list[dict[str, Any]]:
+    coefficients = MATERIAL_RULES.get(event["type"], {"general": 0.06})
+    severity_factor = SEVERITY_FACTOR.get(event["severity"], 1.0)
+    workload = max(float(event["workload"]), 1.0)
+    team_factor = 1.0 + max(0, team_count - 1) * 0.12
+    materials = []
+    for material_type, coefficient in coefficients.items():
+        quantity = ceil(workload * severity_factor * team_factor * coefficient)
+        materials.append({"materialType": material_type, "quantity": max(1, quantity)})
+    return materials
 
 
 def normalize_plan_metrics(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
