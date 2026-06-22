@@ -44,7 +44,10 @@ let state = null;
 let currentEventId = null;
 let currentPlanId = null;
 let currentSimulationId = null;
+let eventPlanSelections = {}; // { eventId: planId, ... }
+let pendingSyncStarts = []; // [{eventId, planId}, ...] — retry when resources free
 let isSubmitting = false;
+let simPollTimer = null;
 
 /* ===== Load State ===== */
 async function loadState() {
@@ -64,6 +67,7 @@ async function loadState() {
 /* ===== Tab Switching ===== */
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
+    // Switching tabs no longer stops simulation — it keeps running in background
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
@@ -83,6 +87,53 @@ function renderDashboard() {
   document.getElementById("mAffectedVehicles").textContent = m.affectedVehicles ?? 0;
   document.getElementById("mRecoveredRoads").textContent = m.recoveredRoads ?? 0;
   renderSvgMap();
+  renderDashboardSimInfo();
+}
+
+function renderDashboardSimInfo() {
+  const sims = (state && state.simulations) || [];
+  const running = sims.filter(s => s.status === "running");
+  const paused = sims.filter(s => s.status === "paused");
+  const finished = sims.filter(s => s.status === "finished");
+  const events = (state && state.events) || [];
+
+  // Aggregate consumed materials across all simulations
+  const allConsumed = {};
+  sims.forEach(s => {
+    (s.consumedMaterials || []).forEach(m => {
+      allConsumed[m.materialType] = (allConsumed[m.materialType] || 0) + m.quantity;
+    });
+  });
+
+  const plannedCount = events.filter(e => e.status === "planned").length;
+  const runningCount = events.filter(e => e.status === "running").length;
+
+  let html = `<div id="dashSimInfo" style="margin-top:12px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)">`;
+
+  html += `<span style="font-size:12px;color:var(--ink-secondary)">
+    仿真状态：<strong style="color:var(--ink)">${running.length}</strong> 运行中
+    <strong style="color:var(--ink);margin-left:6px">${paused.length}</strong> 暂停
+    <strong style="color:var(--ink);margin-left:6px">${finished.length}</strong> 已完成
+  </span>`;
+
+  html += `<span style="font-size:12px;color:var(--ink-secondary)">
+    事件状态：<strong style="color:var(--ink)">${runningCount}</strong> 进行中
+    <strong style="color:var(--ink);margin-left:6px">${plannedCount}</strong> 待处理
+  </span>`;
+
+  const matEntries = Object.entries(allConsumed);
+  if (matEntries.length > 0) {
+    html += `<span style="font-size:12px;color:var(--ink-secondary)">
+      📦 累计消耗材料：${matEntries.map(([type, qty]) => `${type}<strong style="color:var(--ink)">×${(+qty).toFixed(1)}</strong>`).join(" ")}
+    </span>`;
+  }
+
+  html += `</div></div>`;
+
+  const existing = document.getElementById("dashSimInfo");
+  if (existing) existing.outerHTML = html;
+  else document.querySelector(".svg-wrapper").insertAdjacentHTML("beforebegin", html);
 }
 
 let currentFilter = "all";
@@ -93,8 +144,7 @@ const STATUS_COLORS = {
 };
 const STATUS_DASH = { closed: "8,5" };
 
-function renderSvgMap() {
-  const svg = document.getElementById("roadMap");
+function buildSvgHtml(svgSuffix, applyFilter) {
   const nodes = state.nodes || [];
   const edges = state.edges || [];
   const events = state.events || [];
@@ -105,17 +155,17 @@ function renderSvgMap() {
 
   let html = "";
 
-  // Subtle background grid
-  html += `<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+  // Subtle background grid (unique defs id to avoid conflict if both SVGs share page)
+  html += `<defs><pattern id="grid-${svgSuffix}" width="40" height="40" patternUnits="userSpaceOnUse">
     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(26,26,46,0.04)" stroke-width="1"/>
   </pattern></defs>`;
-  html += `<rect width="700" height="420" fill="url(#grid)"/>`;
+  html += `<rect width="700" height="420" fill="url(#grid-${svgSuffix})"/>`;
 
-  // Edges
+  // Edges (only apply status filter for dashboard SVG)
   edges.forEach(e => {
     const from = nodeMap[e.fromNode], to = nodeMap[e.toNode];
     if (!from || !to) return;
-    if (currentFilter !== "all" && e.status !== currentFilter) return;
+    if (applyFilter && currentFilter !== "all" && e.status !== currentFilter) return;
     const color = STATUS_COLORS[e.status] || "#999";
     html += `<line class="edge-line" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"
       stroke="${color}" stroke-dasharray="${STATUS_DASH[e.status] || ""}"
@@ -137,18 +187,23 @@ function renderSvgMap() {
       data-event-id="${ev.id}"><title>${ev.type} — ${ev.roadId} [${ev.status}]</title></polygon>`;
   });
 
-  // Team markers
-  teams.filter(t => t.status !== "offline").forEach(t => {
-    const node = nodeMap[t.locationNode];
-    if (!node) return;
-    const cy = node.y - 20;
-    const busy = t.status === "busy";
-    html += `<g class="team-marker" data-team-id="${t.id}">
-      <circle cx="${node.x}" cy="${cy}" r="10" fill="${busy ? "#ff8f00" : "#1565c0"}" stroke="#fff" stroke-width="2"/>
-      <text x="${node.x}" y="${cy + 4}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">T</text>
-      <title>${t.name} @ ${t.locationNode} [${t.status}]</title>
-    </g>`;
-  });
+  // Team markers (skip if simulation overlay handles them)
+  const hasActiveSim = (state.simulations || []).some(s =>
+    s.eventId === currentEventId && (s.status === "running" || s.status === "paused" || s.status === "finished")
+  );
+  if (!hasActiveSim) {
+    teams.filter(t => t.status !== "offline").forEach(t => {
+      const node = nodeMap[t.locationNode];
+      if (!node) return;
+      const cy = node.y - 20;
+      const busy = t.status === "busy";
+      html += `<g class="team-marker" data-team-id="${t.id}">
+        <circle cx="${node.x}" cy="${cy}" r="10" fill="${busy ? "#ff8f00" : "#1565c0"}" stroke="#fff" stroke-width="2"/>
+        <text x="${node.x}" y="${cy + 4}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">T</text>
+        <title>${t.name} @ ${t.locationNode} [${t.status}]</title>
+      </g>`;
+    });
+  }
 
   // Nodes
   const nodeFill = { intersection: "#fff", station: "#fff8e1", depot: "#e8f5e9" };
@@ -161,10 +216,18 @@ function renderSvgMap() {
     html += `<text class="node-label" x="${n.x}" y="${n.y + 20}" text-anchor="middle">${n.name}</text>`;
   });
 
-  svg.innerHTML = html;
+  return html;
+}
 
-  // Render legend
+function renderSvgMap() {
+  document.getElementById("roadMap").innerHTML = buildSvgHtml("dash", true);
   renderLegend();
+}
+
+function renderSimSvg() {
+  const svg = document.getElementById("simRoadMap");
+  if (!svg) return;
+  svg.innerHTML = buildSvgHtml("sim", false);
 }
 
 function renderLegend() {
@@ -209,7 +272,7 @@ async function renderEventList() {
       <td>${ev.blocked ? "是" : "否"}</td>
       <td>
         ${editable ? `<button class="btn btn-sm" onclick="editEvent('${ev.id}')">编辑</button> ` : ""}
-        ${ev.status !== "running" ? `<button class="btn btn-sm" onclick="deleteEvent('${ev.id}')">删除</button>` : ""}
+        <button class="btn btn-sm" onclick="deleteEvent('${ev.id}')">删除</button>
       </td>
     </tr>`;
   }).join("");
@@ -517,10 +580,23 @@ async function renderResourceManage() {
   if (depots.length === 0) {
     dbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><span class="empty-icon">📦</span><p>暂无仓库。</p></div></td></tr>';
   } else {
-    dbody.innerHTML = depots.map(d => `<tr>
-      <td><strong>${d.id}</strong></td><td>${d.nodeId}</td><td>${d.materialType}</td><td>${d.stock}</td>
-      <td><button class="btn btn-sm" onclick="editDepot('${d.id}')">编辑</button> <button class="btn btn-sm" onclick="deleteDepot('${d.id}')">删除</button></td>
-    </tr>`).join("");
+    const maxStock = Math.max(...depots.map(d => d.stock || 0), 1);
+    dbody.innerHTML = depots.map(d => {
+      const pct = Math.min(100, (d.stock / maxStock) * 100);
+      const lowStock = d.stock < 20;
+      return `<tr>
+        <td><strong>${d.id}</strong></td><td>${d.nodeId}</td><td>${d.materialType}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-weight:${lowStock ? '700' : '500'};color:${lowStock ? '#e53935' : 'inherit'}">${d.stock}</span>
+            <div style="flex:1;max-width:80px;height:6px;background:rgba(26,26,46,0.06);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${lowStock ? '#e53935' : '#4caf50'};border-radius:3px"></div>
+            </div>
+          </div>
+        </td>
+        <td><button class="btn btn-sm" onclick="editDepot('${d.id}')">编辑</button> <button class="btn btn-sm" onclick="deleteDepot('${d.id}')">删除</button></td>
+      </tr>`;
+    }).join("");
   }
 }
 
@@ -680,34 +756,75 @@ document.getElementById("confirmResourcesImport").addEventListener("click", asyn
    Tab 5: Plan & Simulation
    ================================================================== */
 async function renderPlanArea() {
+  // Render road network SVG in simulation tab
+  renderSimSvg();
   const sel = document.getElementById("simEventSelect");
   const events = (state && state.events) || [];
   const currentVal = sel.value;
+  const actionableStatuses = ["planned", "created"];
   sel.innerHTML = '<option value="">-- 选择事件 --</option>' + events.map(e =>
-    `<option value="${e.id}">${e.id}: ${e.type} → ${e.roadId} [${e.status}]</option>`
+    `<option value="${e.id}">${e.id}: ${e.type} → ${e.roadId} [${e.status}]${actionableStatuses.includes(e.status) ? ' 📋' : ''}</option>`
   ).join("");
   if (currentVal && [...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
   if (events.length > 0 && !sel.value) {
-    sel.value = events[0].id;
-    currentEventId = events[0].id;
+    // Prefer an event that can generate plans (planned/created), fallback to first
+    const actionable = events.find(e => actionableStatuses.includes(e.status));
+    sel.value = actionable ? actionable.id : events[0].id;
+    currentEventId = sel.value;
+  }
+  // 自动加载已存在的方案
+  if (currentEventId) {
+    await loadExistingPlans(currentEventId);
   }
   updateSimStatus();
 }
 
-document.getElementById("simEventSelect").addEventListener("change", () => {
+document.getElementById("simEventSelect").addEventListener("change", async () => {
   currentEventId = document.getElementById("simEventSelect").value;
-  clearSimUI();
+  // Keep sim controls visible — only reload plans for the new event
+  document.getElementById("planCards").innerHTML = "";
+  const phaseEl = document.getElementById("simPhaseDisplay");
+  if (phaseEl) phaseEl.remove();
+  currentSimulationId = null;
+  document.getElementById("simControlArea").style.display = "none";
+  if (currentEventId) {
+    await loadExistingPlans(currentEventId);
+    updateSimStatus();
+  }
 });
 
-function clearSimUI() {
+function switchToEvent(eventId) {
+  document.getElementById("simEventSelect").value = eventId;
+  currentEventId = eventId;
   document.getElementById("planCards").innerHTML = "";
-  selectedPlanId = null;
-  currentPlanId = null;
+  const phaseEl = document.getElementById("simPhaseDisplay");
+  if (phaseEl) phaseEl.remove();
+  currentSimulationId = null;
   document.getElementById("simControlArea").style.display = "none";
+  loadExistingPlans(eventId);
+}
+
+async function loadExistingPlans(eventId) {
+  if (!eventId) return;
+  showLoading();
+  const result = await apiGet(`/api/plans/${eventId}`);
+  hideLoading();
+  if (!checkResult(result)) return;
+  if (result.data && result.data.length > 0) {
+    renderPlanCards(result.data);
+  } else {
+    document.getElementById("planCards").innerHTML = '<div class="empty-state"><span class="empty-icon">📊</span><p>暂无可用方案。点击「生成方案」生成。</p></div>';
+  }
 }
 
 document.getElementById("generatePlanBtn").addEventListener("click", async () => {
   if (!currentEventId) { toast("请先选择事件"); return; }
+  // Check event status before calling backend
+  const curEvent = state?.events?.find(e => e.id === currentEventId);
+  if (curEvent && !["created", "planned"].includes(curEvent.status)) {
+    toast(`事件 ${currentEventId} 状态为 ${curEvent.status}，无法生成方案。请选择 created 或 planned 状态的事件。`);
+    return;
+  }
   if (isSubmitting) return;
   isSubmitting = true;
   showLoading();
@@ -715,14 +832,8 @@ document.getElementById("generatePlanBtn").addEventListener("click", async () =>
   hideLoading();
   isSubmitting = false;
   if (!checkResult(result)) return;
-  const plans = result.data || [];
-  renderPlanCards(plans);
-  await loadState();
-  const rec = plans.find(p => p.isRecommended);
-  selectedPlanId = rec ? rec.id : (plans[0] ? plans[0].id : null);
-  currentPlanId = selectedPlanId;
-  highlightPlanCard();
   toast("方案已生成");
+  await loadState();
 });
 
 function renderPlanCards(plans) {
@@ -731,116 +842,254 @@ function renderPlanCards(plans) {
     container.innerHTML = '<div class="empty-state"><span class="empty-icon">📊</span><p>暂无可用方案。请确保有 idle 状态的队伍。</p></div>';
     return;
   }
-  const maxScore = Math.max(...plans.map(p => p.score || 0), 0.001);
+  // Check if current event already has any running/paused/finished sim
+  const anySim = (state?.simulations || []).some(s => s.eventId === currentEventId && (s.status === "running" || s.status === "paused" || s.status === "finished"))
+    || pendingSyncStarts.some(p => p.eventId === currentEventId);
+  const mySelectedPlanId = eventPlanSelections[currentEventId];
+
   container.innerHTML = plans.map(p => {
     const isRec = p.isRecommended;
-    const scorePct = ((p.score || 0) / maxScore) * 100;
-    return `<div class="plan-card ${isRec ? 'recommended' : ''}" data-plan-id="${p.id}" onclick="selectPlan('${p.id}')">
+    const mf = p.materialFeasible;
+    const shortage = p.materialShortage || [];
+    const materials = p.requiredMaterials || [];
+    const isSelected = p.id === mySelectedPlanId;
+    const cardClass = `${isRec ? 'recommended' : ''} ${mf === false ? 'material-warn' : ''} ${isSelected ? 'selected' : ''}`;
+
+    let actionsArea = '';
+    if (anySim) {
+      // Simulation phase: show sim controls per card
+      const mySim = (state?.simulations || []).find(s => s.planId === p.id && s.status !== "reset");
+      if (!mySim) {
+        const isPending = pendingSyncStarts.some(pe => pe.eventId === currentEventId && pe.planId === p.id);
+        if (isPending) {
+          actionsArea = `<span class="sim-inline-status" style="color:#ff8f00;background:rgba(255,143,0,0.1)">⏳ 等待资源...</span>`;
+        } else {
+          actionsArea = `<span class="sim-inline-status" style="color:var(--ink-secondary)">未参与同步仿真</span>`;
+        }
+      } else if (mySim.status === "running") {
+        actionsArea = `<span class="sim-inline-status running">● 仿真中</span>
+          <button class="btn btn-sm" onclick="simAction('pause','${mySim.id}')">⏸ 暂停</button>
+          <button class="btn btn-sm" onclick="simAction('reset','${mySim.id}')">↻ 重置</button>`;
+      } else if (mySim.status === "paused") {
+        actionsArea = `<span class="sim-inline-status paused">⏸ 已暂停</span>
+          <button class="btn btn-primary btn-sm" onclick="simAction('resume','${mySim.id}')">▶ 继续</button>
+          <button class="btn btn-sm" onclick="simAction('reset','${mySim.id}')">↻ 重置</button>`;
+      } else if (mySim.status === "finished") {
+        actionsArea = `<span class="sim-inline-status finished">✓ 已完成</span>
+          <button class="btn btn-sm" onclick="simAction('reset','${mySim.id}')">↻ 重置</button>`;
+      }
+    } else {
+      // Selection phase: show select/selected button
+      if (isSelected) {
+        actionsArea = `<span class="selected-badge-inline">✓ 已选</span>
+          <button class="btn btn-sm" onclick="unselectPlan('${p.id}')">取消</button>`;
+      } else {
+        actionsArea = `<button class="btn btn-primary btn-sm" onclick="selectPlanForEvent('${p.id}')">选择此方案</button>`;
+      }
+    }
+
+    return `<div class="plan-card ${cardClass}" data-plan-id="${p.id}">
       ${isRec ? '<span class="plan-badge">★ 推荐</span>' : ''}
+      ${mf === false ? '<span class="plan-badge badge-warn">⚠ 库存不足</span>' : ''}
       <h4>${p.strategyName}</h4>
       <div class="plan-stat">策略 <strong>${p.strategy}</strong></div>
       <div class="plan-stat">参与队伍 <strong>${(p.teams || []).join(", ")}</strong></div>
       <div class="plan-stat">路径 <strong>${(p.route || []).join(" → ") || "直达"}</strong></div>
-      <div class="plan-stat">🕐 到达 <strong>${p.arrivalTime} min</strong></div>
-      <div class="plan-stat">🔧 修复 <strong>${p.repairTime} min</strong></div>
-      <div class="plan-stat">⏱ 总计 <strong>${p.totalTime} min</strong></div>
-      <div class="plan-stat">💰 成本 <strong>${p.cost}</strong></div>
-      <div class="plan-stat">🚗 影响车辆 <strong>${p.affectedVehicles}</strong></div>
-      <div class="score-bar-wrap">
-        <div class="score-bar-label"><span>综合评分</span><span>${(p.score || 0).toFixed(4)}</span></div>
-        <div class="score-bar-track"><div class="score-bar-fill" style="width:${scorePct}%"></div></div>
+      <div class="plan-stat-row">
+        <span>🕐 到达 <strong>${p.arrivalTime} min</strong></span>
+        <span>🔧 修复 <strong>${p.repairTime} min</strong></span>
+        <span>⏱ 总计 <strong>${p.totalTime} min</strong></span>
       </div>
-      <div class="plan-stat" style="margin-top:8px; font-style:italic; color:var(--ink); border-top:1px solid var(--line); padding-top:6px">${p.reason}</div>
+      <div class="plan-stat-row">
+        <span>💰 成本 <strong>${p.cost}</strong></span>
+        <span>🚗 影响 <strong>${p.affectedVehicles}辆</strong></span>
+        <span>⚠ 风险 <strong>${(p.riskPenalty || 0).toFixed(2)}</strong></span>
+      </div>
+      ${materials.length > 0 ? `<div class="plan-stat">📦 所需物资 <strong>${materials.map(m => `${m.materialType}×${m.quantity}`).join(", ")}</strong></div>` : ""}
+      ${shortage.length > 0 ? `<div class="plan-stat plan-shortage">⛔ 库存短缺：${shortage.map(s => `${s.materialType} 缺 ${s.missing}`).join("；")}</div>` : ""}
+      <div class="plan-score-row">
+        <span class="plan-score-label">综合评分</span>
+        <span class="plan-score-value">${(p.score || 0).toFixed(4)}</span>
+        <span class="plan-score-hint">(越低越优)</span>
+      </div>
+      <div class="plan-stat" style="margin-top:6px; font-style:italic; color:var(--ink); border-top:1px solid var(--line); padding-top:6px">${p.reason}</div>
+      <div class="plan-sim-actions">${actionsArea}</div>
     </div>`;
   }).join("");
+  renderSelectionSummary();
 }
 
-let selectedPlanId = null;
-function selectPlan(id) {
-  selectedPlanId = id;
-  currentPlanId = id;
-  highlightPlanCard();
+/* ===== Plan Selection ===== */
+function selectPlanForEvent(planId) {
+  eventPlanSelections[currentEventId] = planId;
+  loadExistingPlans(currentEventId);
 }
-function highlightPlanCard() {
-  document.querySelectorAll(".plan-card").forEach(c => {
-    c.classList.toggle("selected", c.dataset.planId === selectedPlanId);
-  });
+function unselectPlan(planId) {
+  delete eventPlanSelections[currentEventId];
+  loadExistingPlans(currentEventId);
 }
 
-// Simulation controls
-document.getElementById("startSimBtn").addEventListener("click", async () => {
-  if (!currentEventId || !currentPlanId) { toast("请先生成方案并点击选择一个方案"); return; }
-  if (isSubmitting) return;
-  isSubmitting = true;
-  showLoading();
-  const result = await apiPost("/api/simulation/start", { eventId: currentEventId, planId: currentPlanId });
-  hideLoading();
-  isSubmitting = false;
-  if (!checkResult(result)) return;
-  currentSimulationId = result.data?.id || null;
-  toast("仿真已启动");
-  await loadState();
-  renderSimulation(result.data);
-});
+function renderSelectionSummary() {
+  const area = document.getElementById("selectionSummary");
+  const entries = Object.entries(eventPlanSelections);
+  const events = state?.events || [];
+  const plans = state?.plans || [];
+  const sims = state?.simulations || [];
 
-document.getElementById("stepSimBtn").addEventListener("click", async () => {
-  if (!currentSimulationId) { toast("请先开始仿真"); return; }
-  if (isSubmitting) return;
-  isSubmitting = true;
-  showLoading();
-  const result = await apiPost("/api/simulation/step", { simulationId: currentSimulationId });
-  hideLoading();
-  isSubmitting = false;
-  if (!checkResult(result)) return;
-  renderSimulation(result.data);
-  await loadState();
-});
+  if (entries.length === 0) {
+    area.style.display = "none";
+    return;
+  }
+  area.style.display = "block";
 
-document.getElementById("pauseSimBtn").addEventListener("click", async () => {
-  if (!currentSimulationId) return;
-  if (isSubmitting) return;
-  isSubmitting = true;
-  showLoading();
-  const result = await apiPost("/api/simulation/pause", { simulationId: currentSimulationId });
-  hideLoading();
-  isSubmitting = false;
-  if (!checkResult(result)) return;
-  renderSimulation(result.data);
-  await loadState();
-});
+  // Check if any sims are active for the selected events
+  const activeSimIds = entries.map(([eid]) => sims.filter(s => s.eventId === eid && s.status !== "reset").map(s => s.id)).flat();
+  const hasActiveSims = activeSimIds.length > 0 || pendingSyncStarts.length > 0;
 
-document.getElementById("resumeSimBtn").addEventListener("click", async () => {
-  if (!currentSimulationId) return;
-  if (isSubmitting) return;
-  isSubmitting = true;
-  showLoading();
-  const result = await apiPost("/api/simulation/resume", { simulationId: currentSimulationId });
-  hideLoading();
-  isSubmitting = false;
-  if (!checkResult(result)) return;
-  renderSimulation(result.data);
-  await loadState();
-});
+  area.innerHTML = `<div class="summary-header">
+    <h3>已选方案（${entries.length} 个事件）</h3>
+    <div style="display:flex;gap:8px">
+      ${hasActiveSims
+        ? `<button class="btn" id="resetAllBtn">↻ 全部重置</button>`
+        : `<button class="btn btn-primary" id="startSyncBtn">▶ 开始同步仿真</button>`
+      }
+    </div>
+  </div>
+  <div class="summary-list">${entries.map(([eid, pid]) => {
+    const ev = events.find(e => e.id === eid);
+    const pl = plans.find(p => p.id === pid);
+    const sim = sims.find(s => s.eventId === eid && s.status !== "reset");
+    const isPending = pendingSyncStarts.some(p => p.eventId === eid && p.planId === pid);
+    let simStatus = "", simColor = "";
+    if (isPending) { simStatus = "⏳ 等待资源"; simColor = "#ff8f00"; }
+    else if (sim) { simStatus = sim.status === "running" ? "● 仿真中" : sim.status === "paused" ? "⏸ 已暂停" : "✓ 已完成"; simColor = sim.status === "running" ? "#1e88e5" : sim.status === "paused" ? "#ff8f00" : "#4caf50"; }
+    return `<span class="summary-chip" data-event-id="${eid}" onclick="switchToEvent('${eid}')">${ev ? ev.id : eid}: ${pl ? pl.strategyName : pid}${simStatus ? ` <span style="color:${simColor}">${simStatus}</span>` : ''}</span>`;
+  }).join("")}</div>`;
+  const startBtn = document.getElementById("startSyncBtn");
+  if (startBtn) startBtn.onclick = startSyncSimulation;
+  const resetBtn = document.getElementById("resetAllBtn");
+  if (resetBtn) resetBtn.onclick = resetAllSims;
+}
 
-document.getElementById("resetSimBtn").addEventListener("click", async () => {
-  if (!currentSimulationId) return;
-  if (!confirm("确定重置仿真？将恢复到仿真开始前的状态。")) return;
-  if (isSubmitting) return;
-  isSubmitting = true;
-  showLoading();
-  const result = await apiPost("/api/simulation/reset", { simulationId: currentSimulationId });
-  hideLoading();
-  isSubmitting = false;
-  if (!checkResult(result)) return;
-  renderSimulation(result.data);
-  await loadState();
-});
+async function resetAllSims() {
+  pendingSyncStarts = [];
+  const sims = state?.simulations || [];
+  const activeSims = sims.filter(s => s.status === "running" || s.status === "paused" || s.status === "finished");
+  if (activeSims.length === 0) {
+    await loadState();
+    toast("已清除等待中的仿真");
+    return;
+  }
+  if (!confirm(`确定重置全部 ${activeSims.length} 个仿真？将恢复到仿真开始前的状态。`)) return;
 
-// Speed buttons (visual only — backend handles speed internally)
+  const results = await Promise.allSettled(
+    activeSims.map(s =>
+      fetch("/api/simulation/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ simulationId: s.id })
+      }).then(r => r.json())
+    )
+  );
+  const successCount = results.filter(r => r.status === "fulfilled" && r.value.code === 200).length;
+  toast(`重置完成：${successCount}/${activeSims.length} 成功`);
+
+  currentSimulationId = null;
+  const phaseEl = document.getElementById("simPhaseDisplay");
+  if (phaseEl) phaseEl.remove();
+  document.getElementById("simControlArea").style.display = "none";
+  await loadState();
+}
+
+async function startSyncSimulation() {
+  const entries = Object.entries(eventPlanSelections);
+  if (entries.length === 0) { toast("请先为事件选择方案"); return; }
+
+  // Check material feasibility
+  const plans = state?.plans || [];
+  const shortages = [];
+  for (const [, pid] of entries) {
+    const pl = plans.find(p => p.id === pid);
+    if (pl && pl.materialFeasible === false) {
+      shortages.push(`${pl.id} (${pl.strategyName}): ${(pl.materialShortage || []).map(s => `${s.materialType}缺${s.missing}`).join("、")}`);
+    }
+  }
+  if (shortages.length > 0) {
+    if (!confirm(`⚠ 以下方案库存不足：\n${shortages.join("\n")}\n\n是否仍然启动？`)) return;
+  }
+
+  pendingSyncStarts = [];
+  let successCount = 0;
+  for (const [eid, pid] of entries) {
+    if (isSubmitting) { await new Promise(r => setTimeout(r, 100)); }
+    const r = await apiPost("/api/simulation/start", { eventId: eid, planId: pid });
+    if (r.code === 200) {
+      successCount++;
+    } else {
+      pendingSyncStarts.push({ eventId: eid, planId: pid, reason: r.message });
+    }
+  }
+  if (pendingSyncStarts.length > 0) {
+    toast(`${successCount} 个仿真启动成功，${pendingSyncStarts.length} 个等待资源释放后自动启动`);
+  } else {
+    toast("同步仿真已全部启动");
+  }
+  // Track the last started sim for display
+  const lastSuccess = entries.find(([eid]) => !pendingSyncStarts.some(p => p.eventId === eid));
+  const lastSim = lastSuccess ? (state?.simulations || []).find(s => s.eventId === lastSuccess[0] && s.status === "running") : null;
+  currentSimulationId = lastSim ? lastSim.id : null;
+  await loadState();
+  if (currentSimulationId) {
+    const updated = (state?.simulations || []).find(s => s.id === currentSimulationId);
+    if (updated) renderSimulation(updated);
+  }
+}
+
+/* ===== Per-Plan Simulation Controls (post-sync) ===== */
+async function simAction(action, simId) {
+  if (isSubmitting) return;
+  isSubmitting = true; showLoading();
+  let result;
+  if (action === 'step') result = await apiPost("/api/simulation/step", { simulationId: simId });
+  else if (action === 'pause') result = await apiPost("/api/simulation/pause", { simulationId: simId });
+  else if (action === 'resume') result = await apiPost("/api/simulation/resume", { simulationId: simId });
+  else if (action === 'reset') result = await apiPost("/api/simulation/reset", { simulationId: simId });
+  hideLoading(); isSubmitting = false;
+  if (!checkResult(result)) return;
+  currentSimulationId = action === 'reset' ? null : simId;
+  const phaseEl = document.getElementById("simPhaseDisplay");
+  if (action === 'reset' && phaseEl) phaseEl.remove();
+  if (action === 'reset') document.getElementById("simControlArea").style.display = "none";
+  await loadState();
+  if (currentSimulationId) renderSimulation(result.data);
+}
+
+// Speed buttons
 document.querySelectorAll(".speed-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     document.querySelectorAll(".speed-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+    const speed = parseInt(btn.dataset.speed);
+    const sims = state?.simulations || [];
+    const activeSims = sims.filter(s => s.status === "running" || s.status === "paused");
+    if (activeSims.length > 0) {
+      showLoading();
+      // Set speed on all active sims
+      const results = await Promise.allSettled(
+        activeSims.map(s => fetch("/api/simulation/speed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ simulationId: s.id, speed })
+        }).then(r => r.json()))
+      );
+      hideLoading();
+      toast(`倍速已切换为 ${speed}x（${activeSims.length} 个仿真）`);
+      await loadState();
+      if (currentSimulationId) {
+        const updated = (state?.simulations || []).find(s => s.id === currentSimulationId);
+        if (updated) renderSimulation(updated);
+      }
+    }
   });
 });
 
@@ -852,6 +1101,25 @@ function renderSimulation(sim) {
   document.getElementById("progressFill").style.width = Math.min(sim.progress || 0, 100) + "%";
   document.getElementById("progressText").textContent = (sim.progress || 0).toFixed(1) + "%";
 
+  // Phase display
+  const phase = sim.phase || "dispatch";
+  const phaseNames = {dispatch:"派遣中", travel:"行进中", repairing:"修复中", finishing:"收尾中", finished:"已完成"};
+  const phaseEl = document.getElementById("simPhaseDisplay") || (() => {
+    const el = document.createElement("div"); el.id = "simPhaseDisplay";
+    document.querySelector(".sim-progress-area").before(el);
+    return el;
+  })();
+  phaseEl.innerHTML = `
+    <div class="sim-info-row">
+      <div class="sim-info-item">阶段 <span class="sim-phase-badge ${phase}">${phaseNames[phase] || phase}</span></div>
+      <div class="sim-info-item">影响车辆 <strong id="simAffectedVehicles">${sim.currentAffectedVehicles || 0}</strong></div>
+      <div class="sim-info-item">道路状态 <strong style="color:${STATUS_COLORS[sim.roadStatus] || '#999'}">${sim.roadStatus || "--"}</strong></div>
+      <div class="sim-info-item">当前时间 <strong>${sim.currentTime || 0} min</strong></div>
+    </div>`;
+  if (sim.consumedMaterials && sim.consumedMaterials.length > 0) {
+    phaseEl.innerHTML += `<div class="sim-materials">📦 已消耗材料：${sim.consumedMaterials.map(m => `${m.materialType}×${m.quantity}`).join(", ")}</div>`;
+  }
+
   const logs = sim.logs || [];
   const logBox = document.getElementById("simLogs");
   if (logs.length === 0) {
@@ -861,14 +1129,157 @@ function renderSimulation(sim) {
     logBox.scrollTop = logBox.scrollHeight;
   }
 
-  const st = sim.status || "unknown";
-  document.getElementById("startSimBtn").style.display = (st === "ready" || st === "reset") ? "" : "none";
-  document.getElementById("stepSimBtn").style.display = (st === "running") ? "" : "none";
-  document.getElementById("pauseSimBtn").style.display = (st === "running") ? "" : "none";
-  document.getElementById("resumeSimBtn").style.display = (st === "paused") ? "" : "none";
-  document.getElementById("resetSimBtn").style.display = (st === "running" || st === "paused" || st === "finished") ? "" : "none";
+  // Render road map and SVG overlay on both dash and sim tab
+  renderSimSvg();
+  renderSimOnMap(sim);
+
+  // Auto-polling: step ALL running sims across events
+  const anyRunning = (state?.simulations || []).some(s => s.status === "running");
+  if (anyRunning && !simPollTimer) {
+    startSimPolling();
+  } else if (!anyRunning && simPollTimer) {
+    stopSimPolling();
+  }
 
   updateSimStatus();
+}
+
+function startSimPolling() {
+  if (simPollTimer) clearInterval(simPollTimer);
+  simPollTimer = setInterval(async () => {
+    if (isSubmitting) return;
+    const sims = state?.simulations || [];
+    const runningSims = sims.filter(s => s.status === "running");
+
+    if (runningSims.length > 0) {
+      // Step all running simulations in parallel
+      isSubmitting = true;
+      await Promise.allSettled(
+        runningSims.map(sim =>
+          fetch("/api/simulation/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ simulationId: sim.id })
+          }).then(r => r.json())
+        )
+      );
+      isSubmitting = false;
+
+      await loadState();
+    } else if (pendingSyncStarts.length > 0) {
+      // No running sims, but may need to retry pending — refresh state first
+      await loadState();
+    }
+
+    // Auto-retry pending simulation starts when resources may have freed up
+    if (pendingSyncStarts.length > 0) {
+      const stillPending = [];
+      for (const pending of pendingSyncStarts) {
+        const r = await apiPost("/api/simulation/start", { eventId: pending.eventId, planId: pending.planId });
+        if (r.code !== 200) stillPending.push(pending);
+      }
+      if (stillPending.length < pendingSyncStarts.length) {
+        pendingSyncStarts = stillPending;
+        if (pendingSyncStarts.length === 0) toast("所有等待中的仿真已自动启动");
+        await loadState();
+      } else {
+        pendingSyncStarts = stillPending;
+      }
+    }
+
+    // Re-render the focused simulation if any
+    if (currentSimulationId) {
+      const updated = (state?.simulations || []).find(s => s.id === currentSimulationId);
+      if (updated) renderSimulation(updated);
+    }
+  }, 3000);
+}
+
+function stopSimPolling() {
+  if (simPollTimer) {
+    clearInterval(simPollTimer);
+    simPollTimer = null;
+  }
+}
+
+function renderSimOnMap(sim) {
+  addSimOverlayToSvg(document.getElementById("roadMap"), sim);
+  addSimOverlayToSvg(document.getElementById("simRoadMap"), sim);
+}
+
+function addSimOverlayToSvg(svg, sim) {
+  if (!svg) return;
+  // Remove previous sim overlays
+  svg.querySelectorAll(".sim-overlay").forEach(el => el.remove());
+  if (!sim || !state) return;
+
+  const st = sim.status || "unknown";
+  if (st === "ready" || st === "reset") return;
+
+  const nodes = state.nodes || [];
+  const edges = state.edges || [];
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
+
+  let overlayHtml = "";
+
+  // Find plan route for this simulation
+  let planRoute = [];
+  const currentPlans = state.plans || [];
+  const plan = currentPlans.find(p => p.id === sim.planId);
+  if (plan && plan.route && plan.route.length > 0) {
+    planRoute = plan.route;
+  }
+
+  // Draw plan route (glow + dashed line)
+  if (planRoute.length >= 2) {
+    const pts = planRoute.map(id => nodeMap[id]).filter(n => n);
+    const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+    overlayHtml += `<path class="sim-overlay sim-route-glow" d="${pathD}"/>`;
+    overlayHtml += `<path class="sim-overlay sim-route-path" d="${pathD}"/>`;
+  }
+
+  // Highlight the affected road
+  const roadId = sim.roadId;
+  if (roadId) {
+    const edge = edges.find(e => e.id === roadId);
+    if (edge) {
+      const from = nodeMap[edge.fromNode], to = nodeMap[edge.toNode];
+      if (from && to) {
+        overlayHtml += `<line class="sim-overlay sim-affected-road" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"/>`;
+      }
+    }
+  }
+
+  // Draw team positions from sim data
+  const teamPositions = sim.teamPositions || {};
+  Object.entries(teamPositions).forEach(([teamId, nodeId]) => {
+    const node = nodeMap[nodeId];
+    if (!node) return;
+    const busy = st === "running" || st === "paused";
+    overlayHtml += `<g class="sim-overlay sim-team-marker" data-team-id="${teamId}">
+      <circle cx="${node.x}" cy="${node.y - 20}" r="12" fill="${busy ? "#ff6f00" : "#4caf50"}" stroke="#fff" stroke-width="2.5"/>
+      <circle cx="${node.x}" cy="${node.y - 20}" r="5" fill="#fff" opacity="0.6"/>
+      <text class="sim-team-label" x="${node.x}" y="${node.y - 17}">${teamId}</text>
+    </g>`;
+  });
+
+  // Progress indicator near event site
+  if (roadId && sim.progress > 0) {
+    const edge = edges.find(e => e.id === roadId);
+    if (edge) {
+      const from = nodeMap[edge.fromNode], to = nodeMap[edge.toNode];
+      if (from && to) {
+        const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+        overlayHtml += `<rect class="sim-overlay sim-progress-bg" x="${mx - 22}" y="${my - 32}" width="44" height="18"/>
+          <text class="sim-overlay sim-progress-dot" x="${mx}" y="${my - 19}" text-anchor="middle">${sim.progress.toFixed(0)}%</text>`;
+      }
+    }
+  }
+
+  if (overlayHtml) {
+    svg.insertAdjacentHTML("beforeend", overlayHtml);
+  }
 }
 
 function updateSimStatus() {
@@ -876,14 +1287,26 @@ function updateSimStatus() {
   const text = document.getElementById("simStatusText");
   if (!state) return;
   const sims = state.simulations || [];
-  if (sims.length > 0) {
-    const sim = sims[0];
+  // Find the active (non-reset) simulation for this event, preferring the latest
+  const eventSim = sims.filter(s => s.eventId === currentEventId && s.status !== "reset").pop();
+  const anyActive = sims.some(s => s.status !== "reset");
+  const runningCount = sims.filter(s => s.status === "running").length;
+
+  if (eventSim && eventSim.status !== "reset") {
     bar.style.display = "block";
-    text.textContent = `仿真 ${sim.id}: ${sim.status} — 进度 ${(sim.progress || 0).toFixed(1)}%`;
-    if (sim.id && !currentSimulationId) {
-      currentSimulationId = sim.id;
-      renderSimulation(sim);
+    text.textContent = `${eventSim.id}: ${eventSim.status} — 进度 ${(eventSim.progress || 0).toFixed(1)}%`;
+    const area = document.getElementById("simControlArea");
+    if (area.style.display === "none" || !area.style.display) {
+      currentSimulationId = eventSim.id;
+      renderSimulation(eventSim);
     }
+  } else if (anyActive) {
+    // Current event has no sim, but others are running — show global status
+    bar.style.display = "block";
+    const finishedCount = sims.filter(s => s.status === "finished").length;
+    const totalCount = sims.filter(s => s.status !== "reset").length;
+    text.textContent = `当前事件未参与仿真 · ${runningCount} 运行中 · ${finishedCount} 已完成 · 共 ${totalCount} 活跃`;
+    document.getElementById("simControlArea").style.display = "none";
   } else {
     bar.style.display = "none";
   }
@@ -960,7 +1383,11 @@ function renderReport(data) {
         <dt>参与队伍</dt><dd>${(rp.teams || []).join(", ") || "--"}</dd>
         <dt>总恢复时间</dt><dd>${rp.totalTime} min</dd>
         <dt>成本</dt><dd>${rp.cost}</dd>
-        <dt>综合评分</dt><dd>${(rp.score || 0).toFixed(4)}</dd>
+        <dt>影响车辆</dt><dd>${rp.affectedVehicles}</dd>
+        <dt>风险惩罚</dt><dd>${(rp.riskPenalty || 0).toFixed(2)}</dd>
+        <dt>综合评分</dt><dd>${(rp.score || 0).toFixed(4)} <small>(越低越优)</small></dd>
+        ${(rp.requiredMaterials || []).length ? `<dt>所需物资</dt><dd>${rp.requiredMaterials.map(m => `${m.materialType}×${m.quantity}`).join(", ")}</dd>` : ""}
+        ${rp.materialFeasible === false ? `<dt style="color:#e53935">库存状态</dt><dd style="color:#e53935">库存不足：${(rp.materialShortage || []).map(s => `${s.materialType}缺${s.missing}`).join("；")}</dd>` : ""}
         <dt>说明</dt><dd>${rp.reason || "--"}</dd>
       </dl>
     </div>`;
@@ -971,29 +1398,34 @@ function renderReport(data) {
     html += `<div class="report-section">
       <h3>方案对比</h3>
       <div class="table-wrap"><table>
-        <thead><tr><th>方案</th><th>策略</th><th>队伍</th><th>到达</th><th>修复</th><th>总时间</th><th>成本</th><th>影响车辆</th><th>评分</th><th>推荐</th></tr></thead>
+        <thead><tr><th>方案</th><th>策略</th><th>队伍</th><th>总计</th><th>成本</th><th>影响</th><th>风险</th><th>物资</th><th>评分</th><th>推荐</th></tr></thead>
         <tbody>${plans.map(p => `<tr${p.isRecommended ? ' style="background:rgba(192,57,43,0.04)"' : ''}>
           <td><strong>${p.strategyName}</strong></td><td>${p.strategy}</td>
           <td>${(p.teams || []).join(",")}</td>
-          <td>${p.arrivalTime}</td><td>${p.repairTime}</td><td>${p.totalTime}</td>
-          <td>${p.cost}</td><td>${p.affectedVehicles}</td>
+          <td>${p.totalTime}</td>
+          <td>${p.cost}</td>
+          <td>${p.affectedVehicles}</td>
+          <td>${(p.riskPenalty || 0).toFixed(2)}</td>
+          <td>${(p.requiredMaterials || []).map(m => `${m.materialType}×${m.quantity}`).join("<br>") || "--"}</td>
           <td>${(p.score || 0).toFixed(4)}</td>
           <td>${p.isRecommended ? "✓" : ""}</td>
         </tr>`).join("")}</tbody>
       </table></div>
+      <p style="font-size:12px;color:var(--ink-secondary);margin-top:4px">* 评分越低越优</p>
     </div>`;
 
-    // Bar chart
-    const maxScore = Math.max(...plans.map(p => p.score || 0), 0.001);
+    // Bar chart of raw scores (lower is better)
+    const scores = plans.map(p => p.score || 0);
+    const maxScore = Math.max(...scores, 0.001);
     html += `<div class="report-section">
-      <h3>评分对比</h3>
+      <h3>综合评分对比（越低越优）</h3>
       <div class="report-bar-chart">`;
-    plans.forEach(p => {
-      const pct = ((p.score || 0) / maxScore) * 100;
+    plans.forEach((p, i) => {
+      const pct = (1 - scores[i] / maxScore) * 100;
       html += `<div class="bar-item">
         <span class="bar-label">${p.strategyName}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-        <span class="bar-value">${(p.score || 0).toFixed(4)}</span>
+        <div class="bar-track"><div class="bar-fill bar-fill-invert" style="width:${pct}%"></div></div>
+        <span class="bar-value">${scores[i].toFixed(4)}</span>
       </div>`;
     });
     html += `</div></div>`;
@@ -1008,18 +1440,25 @@ function renderReport(data) {
         <dt>状态</dt><dd><span class="status-pill ${sim.status}">${sim.status}</span></dd>
         <dt>进度</dt><dd>${(sim.progress || 0).toFixed(1)}%</dd>
         <dt>当前时间</dt><dd>${sim.currentTime || 0} min</dd>
+        <dt>当前影响车辆</dt><dd>${sim.currentAffectedVehicles || 0}</dd>
+        <dt>道路状态</dt><dd>${sim.roadStatus || "--"}</dd>
+        ${(sim.consumedMaterials || []).length ? `<dt>已消耗材料</dt><dd>${sim.consumedMaterials.map(m => `${m.materialType}×${m.quantity} (${m.depotId})`).join(", ")}</dd>` : ""}
       </dl>
     </div>`;
   }
 
   // Summary
-  if (summary.totalTime || summary.totalCost) {
+  if (summary.eventStatus) {
     html += `<div class="report-section">
       <h3>汇总</h3>
       <dl class="report-dl">
-        <dt>总恢复时间</dt><dd>${summary.totalTime || "--"} min</dd>
-        <dt>总成本</dt><dd>${summary.totalCost || "--"}</dd>
-        <dt>影响车辆总计</dt><dd>${summary.totalAffectedVehicles || "--"}</dd>
+        <dt>事件状态</dt><dd>${summary.eventStatus}</dd>
+        <dt>方案数量</dt><dd>${summary.planCount || 0}</dd>
+        <dt>推荐策略</dt><dd>${summary.recommendedStrategy || "--"}</dd>
+        <dt>仿真状态</dt><dd>${summary.simulationStatus || "--"}</dd>
+        <dt>当前影响车辆</dt><dd>${summary.currentAffectedVehicles || 0}</dd>
+        <dt>日志条数</dt><dd>${summary.logCount || 0}</dd>
+        ${(summary.consumedMaterials || []).length ? `<dt>已消耗材料</dt><dd>${summary.consumedMaterials.map(m => `${m.materialType}×${m.quantity} (${m.depotId})`).join(", ")}</dd>` : ""}
       </dl>
     </div>`;
   }
